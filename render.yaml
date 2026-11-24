@@ -29,3 +29,14 @@ services:
         value: ".onrender.com"
       - key: CSRF_TRUSTED_ORIGINS
         value: "https://*.onrender.com"
+      # Administrador criado no deploy (o plano gratuito não tem Shell).
+      # sync: false = o Render pede o valor na tela, e ele nunca fica no código.
+      - key: DJANGO_SUPERUSER_USERNAME
+        sync: false
+      - key: DJANGO_SUPERUSER_EMAIL
+        sync: false
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false
+      # Dados fictícios para a apresentação; troque para 0 depois.
+      - key: CARREGAR_DEMO
+        value: "1"
