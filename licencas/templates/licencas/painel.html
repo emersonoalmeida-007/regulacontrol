@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static moeda %}
 {% block titulo %}Painel de conformidade{% endblock %}
 {% block conteudo %}
 <h1>Painel de conformidade</h1>
@@ -15,6 +15,7 @@
     <li class="indicador vencidas"><span class="valor">{{ resumo.por_status.vencida }}</span><span class="rotulo">vencidas</span></li>
     <li class="indicador proximas"><span class="valor">{{ resumo.por_status.vence_30 }}</span><span class="rotulo">vencem em até 30 dias</span></li>
     <li class="indicador proximas"><span class="valor">{{ resumo.por_status.vence_60|add:resumo.por_status.vence_90 }}</span><span class="rotulo">vencem em 31 a 90 dias</span></li>
+    <li class="indicador custo"><a class="valor moeda" href="{% url 'licencas:relatorio_custos' %}">{{ custo_anual|reais }}</a><span class="rotulo">custo anual previsto</span></li>
   </ul>
 </section>
 

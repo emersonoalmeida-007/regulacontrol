@@ -9,7 +9,10 @@ Projeto Integrador em Computação II (PJI240) – UNIVESP, 2027.1.
 - Cadastro de licenças com upload do PDF e status automático: vigente, vence em até 90/60/30 dias, vencida
 - Lista com busca e filtros sem recarregar a página, e exportação em CSV
 - Registro de renovação com histórico
-- Alerta diário por e-mail para cada responsável
+- Alerta diário por e-mail para cada responsável, com antecedência configurável por licença
+- Controle de custos: valor e periodicidade (mensal, semestral, anual) de cada licença e porte da empresa
+- Relatório gerencial de custos: custo anual, fluxo de pagamentos de 12 meses, agrupamentos por unidade, órgão, porte e periodicidade, com exportação em CSV e impressão
+- API de custos: `/api/custos/`
 - Painel de conformidade com indicadores e gráficos
 - API REST: `/api/licencas/` e `/api/resumo/`
 - Perfis de acesso: Administrador, Analista e Consulta

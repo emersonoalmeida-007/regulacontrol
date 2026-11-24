@@ -15,6 +15,7 @@ urlpatterns = [
     path("entrar/", auth_views.LoginView.as_view(redirect_authenticated_user=True), name="login"),
     path("sair/", auth_views.LogoutView.as_view(), name="logout"),
     path("api/resumo/", api.resumo, name="api-resumo"),
+    path("api/custos/", api.resumo_custos, name="api-custos"),
     path("api/", include(router.urls)),
     path("", include("licencas.urls")),
 ]

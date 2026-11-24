@@ -1,28 +1,29 @@
 """Alertas de vencimento por e-mail (RF08).
 
-Cada responsável recebe UM e-mail por dia com:
-- licenças vencidas ou que vencem em até 30 dias (todo dia, até renovar);
-- licenças que completam exatamente 90 ou 60 dias para o vencimento (lembrete antecipado).
+Cada responsável recebe UM e-mail por dia com as licenças que pedem atenção hoje.
+A regra fica em Licenca.deve_alertar:
+- padrão: lembretes com 90 e 60 dias, e todo dia nos últimos 30 dias (e depois de vencer);
+- se a licença tiver "avisar quantos dias antes" = N: lembrete no dia N e todo dia a partir de min(N, 30).
 """
 from collections import defaultdict
 from datetime import date, timedelta
 
 from django.conf import settings
 from django.core.mail import send_mail
-from django.db.models import Q
 from django.utils import timezone
 
 from .consultas import licencas_ativas
 
-MARCOS_ANTECIPADOS = (90, 60)
-
-
-def licencas_para_alertar(hoje: date | None = None):
+def licencas_para_alertar(hoje: date | None = None) -> list:
     hoje = hoje or timezone.localdate()
-    filtro = Q(data_validade__lte=hoje + timedelta(days=30))
-    for dias in MARCOS_ANTECIPADOS:
-        filtro |= Q(data_validade=hoje + timedelta(days=dias))
-    return licencas_ativas().filter(filtro).exclude(responsavel__isnull=True).exclude(responsavel__email="")
+    # Pré-filtro no banco (o aviso máximo é de 365 dias); a regra fina roda em Python.
+    candidatas = (
+        licencas_ativas()
+        .filter(data_validade__lte=hoje + timedelta(days=365))
+        .exclude(responsavel__isnull=True)
+        .exclude(responsavel__email="")
+    )
+    return [lic for lic in candidatas if lic.deve_alertar(hoje)]
 
 
 def montar_mensagem(licencas) -> str:

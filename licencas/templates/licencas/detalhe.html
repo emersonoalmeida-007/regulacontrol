@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load moeda %}
 {% block titulo %}{{ licenca.tipo.nome }}{% endblock %}
 {% block conteudo %}
 <p><a href="{% url 'licencas:lista' %}">← Voltar para licenças</a></p>
@@ -18,11 +19,13 @@
   </p>
   <dl class="dados">
     <dt>Órgão emissor</dt><dd>{{ licenca.tipo.orgao.nome }} ({{ licenca.tipo.orgao.sigla }})</dd>
-    <dt>Unidade</dt><dd>{{ licenca.unidade.nome }} · CNPJ {{ licenca.unidade.cnpj_formatado }}</dd>
+    <dt>Unidade</dt><dd>{{ licenca.unidade.nome }} · CNPJ {{ licenca.unidade.cnpj_formatado }}{% if licenca.unidade.porte %} · {{ licenca.unidade.get_porte_display }}{% endif %}</dd>
     <dt>Número/protocolo</dt><dd>{{ licenca.numero }}</dd>
     <dt>Emissão</dt><dd>{{ licenca.data_emissao|date:"d/m/Y" }}</dd>
     <dt>Validade</dt><dd>{{ licenca.data_validade|date:"d/m/Y" }}</dd>
     <dt>Responsável</dt><dd>{{ licenca.responsavel.get_full_name|default:"Não definido" }}</dd>
+    <dt>Valor</dt><dd>{% if licenca.valor is not None %}{{ licenca.valor|reais }} · {{ licenca.get_periodicidade_display|lower }} <span class="ajuda">({{ licenca.custo_anual|reais }} por ano)</span>{% else %}Não informado{% endif %}</dd>
+    <dt>Aviso por e-mail</dt><dd>{% if licenca.dias_aviso %}{{ licenca.dias_aviso }} dias antes do vencimento{% else %}Padrão (90 e 60 dias, e diário nos últimos 30){% endif %}</dd>
     <dt>Documento</dt><dd>{% if licenca.arquivo %}<a href="{{ licenca.arquivo.url }}">Abrir PDF da licença</a>{% else %}Nenhum arquivo anexado{% endif %}</dd>
     {% if licenca.observacoes %}<dt>Observações</dt><dd>{{ licenca.observacoes|linebreaksbr }}</dd>{% endif %}
   </dl>

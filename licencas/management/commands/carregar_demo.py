@@ -4,6 +4,7 @@ Empresa, CNPJs, números de licença e pessoas são inventados. Não use dados r
 sem autorização por escrito da organização parceira (LGPD).
 """
 from datetime import timedelta
+from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -11,7 +12,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
-from licencas.models import Licenca, OrgaoEmissor, TipoLicenca, Unidade
+from licencas.models import Licenca, OrgaoEmissor, Periodicidade, Porte, TipoLicenca, Unidade
 from licencas.permissoes import GRUPO_ADMIN, GRUPO_ANALISTA, GRUPO_CONSULTA
 
 SENHA_DEMO = "demo12345"
@@ -36,9 +37,20 @@ TIPOS = [
 ]
 
 UNIDADES = [
-    ("CD Guarulhos", "11222333000181", "Distribuidora Exemplo Ltda", "Guarulhos", "SP"),
-    ("CD Cajamar", "11222333000262", "Distribuidora Exemplo Ltda", "Cajamar", "SP"),
-    ("Escritório São Paulo", "11222333000343", "Distribuidora Exemplo Ltda", "São Paulo", "SP"),
+    ("CD Guarulhos", "11222333000181", "Distribuidora Exemplo Ltda", "Guarulhos", "SP", Porte.GRANDE_I),
+    ("CD Cajamar", "11222333000262", "Distribuidora Exemplo Ltda", "Cajamar", "SP", Porte.MEDIO_III),
+    ("Escritório São Paulo", "11222333000343", "Distribuidora Exemplo Ltda", "São Paulo", "SP", Porte.EPP),
+]
+
+# Valores FICTÍCIOS por tipo de licença (mesma ordem de TIPOS): (valor, periodicidade)
+VALORES = [
+    (Decimal("4500.00"), Periodicidade.ANUAL),      # AFE
+    (Decimal("3200.00"), Periodicidade.ANUAL),      # AE
+    (Decimal("850.00"), Periodicidade.ANUAL),       # Licença Sanitária
+    (Decimal("1200.00"), Periodicidade.ANUAL),      # AVCB
+    (Decimal("1300.00"), Periodicidade.SEMESTRAL),  # Licença de Operação
+    (Decimal("95.00"), Periodicidade.MENSAL),       # Alvará (parcelado)
+    (Decimal("120.00"), Periodicidade.MENSAL),      # Certidão de Regularidade Técnica
 ]
 
 # (tipo, unidade, dias até o vencimento) — espalhados para mostrar todos os status
@@ -81,17 +93,20 @@ class Command(BaseCommand):
         tipos = [
             TipoLicenca.objects.get_or_create(nome=nome, orgao=orgaos[sigla])[0] for nome, sigla in TIPOS
         ]
-        unidades = [
-            Unidade.objects.get_or_create(
+        unidades = []
+        for nome, cnpj, razao, mun, uf, porte in UNIDADES:
+            u, _ = Unidade.objects.get_or_create(
                 cnpj=cnpj, defaults={"nome": nome, "razao_social": razao, "municipio": mun, "uf": uf}
-            )[0]
-            for nome, cnpj, razao, mun, uf in UNIDADES
-        ]
+            )
+            if not u.porte:  # completa bases criadas antes do campo existir
+                u.porte = porte
+                u.save(update_fields=["porte"])
+            unidades.append(u)
 
         criadas = 0
         for i, (t, u, dias) in enumerate(LICENCAS, start=1):
             validade = hoje + timedelta(days=dias)
-            _, criada = Licenca.objects.get_or_create(
+            lic, criada = Licenca.objects.get_or_create(
                 tipo=tipos[t],
                 unidade=unidades[u],
                 defaults={
@@ -102,6 +117,11 @@ class Command(BaseCommand):
                 },
             )
             criadas += criada
+            if lic.valor is None:  # completa bases criadas antes do controle de custos
+                lic.valor, lic.periodicidade = VALORES[t]
+                if i == 1:
+                    lic.dias_aviso = 120  # exemplo de aviso personalizado
+                lic.save(update_fields=["valor", "periodicidade", "dias_aviso"])
 
         self.stdout.write(self.style.SUCCESS(
             f"Dados de demonstração prontos ({criadas} licenças novas). "

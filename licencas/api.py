@@ -3,12 +3,13 @@
 GET /api/licencas/            lista (filtros: status, unidade, orgao, q)
 GET /api/licencas/<id>/       detalhe
 GET /api/resumo/              indicadores do painel
+GET /api/custos/              custos por unidade, órgão, porte, periodicidade e fluxo de 12 meses
 """
 from rest_framework import serializers, viewsets
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from . import consultas
+from . import consultas, custos
 from .models import Licenca
 
 
@@ -20,12 +21,15 @@ class LicencaSerializer(serializers.ModelSerializer):
     status = serializers.CharField(read_only=True)
     status_label = serializers.CharField(read_only=True)
     dias_restantes = serializers.IntegerField(read_only=True)
+    porte_unidade = serializers.CharField(source="unidade.get_porte_display", read_only=True)
+    custo_anual = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
 
     class Meta:
         model = Licenca
         fields = [
-            "id", "tipo", "orgao", "unidade", "numero", "data_emissao", "data_validade",
+            "id", "tipo", "orgao", "unidade", "porte_unidade", "numero", "data_emissao", "data_validade",
             "dias_restantes", "status", "status_label", "responsavel",
+            "valor", "periodicidade", "custo_anual", "dias_aviso",
         ]
 
     def get_responsavel(self, obj):
@@ -37,6 +41,20 @@ class LicencaViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         return consultas.aplicar_filtros(consultas.licencas_ativas(), self.request.query_params)
+
+
+@api_view(["GET"])
+def resumo_custos(request):
+    r = custos.resumo_custos()
+    return Response({
+        "total_anual": r["total_anual"],
+        "media_mensal": r["media_mensal"],
+        "por_unidade": r["por_unidade"],
+        "por_orgao": r["por_orgao"],
+        "por_porte": r["por_porte"],
+        "por_periodicidade": r["por_periodicidade"],
+        "fluxo_12_meses": custos.fluxo_pagamentos(),
+    })
 
 
 @api_view(["GET"])

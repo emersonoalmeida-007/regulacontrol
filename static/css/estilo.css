@@ -155,6 +155,29 @@ td a:hover { text-decoration: underline; }
 .indicador.vencidas .valor { color: var(--vencida-fg); }
 .indicador.proximas .valor { color: var(--v30-fg); }
 
+.indicador.custo::before { background: var(--primaria); }
+.indicador.custo .valor { color: var(--primaria); text-decoration: none; }
+.indicador.custo .valor:hover { text-decoration: underline; }
+.indicador .valor.moeda { font-size: 1.35rem; white-space: nowrap; letter-spacing: -.01em; }
+
+/* ---------- Relatório de custos ---------- */
+tfoot th, tfoot td { background: #f8fafc; font-weight: 700; border-top: 2px solid var(--borda); border-bottom: 0; }
+.barra-pct { display: inline-block; min-width: 4.5rem; padding: .1rem .4rem; border-radius: 4px; font-weight: 600; font-size: .85rem;
+  background: linear-gradient(90deg, var(--primaria-suave) var(--pct), transparent var(--pct)); }
+.mensagem.aviso { background: var(--v30-bg); color: var(--v30-fg); margin-top: 1rem; }
+.mensagem.aviso a { color: inherit; }
+
+@media print {
+  .lateral, .barra, .rodape, .nao-imprimir, .pular, details summary { display: none !important; }
+  .area { margin-left: 0; }
+  body { background: #fff; font-size: 11pt; }
+  main { padding: 0; max-width: none; }
+  .cartao, .indicador, .rolagem { box-shadow: none; break-inside: avoid; }
+  details { display: block; }
+  details > table { display: table; }
+  a { color: inherit; text-decoration: none; }
+}
+
 .lista-curta { list-style: none; padding: 0; margin: 0; }
 .lista-curta li { display: flex; flex-wrap: wrap; align-items: center; gap: .2rem .75rem; padding: .75rem 0; border-bottom: 1px solid var(--borda); }
 .lista-curta li:last-child { border-bottom: 0; padding-bottom: 0; }

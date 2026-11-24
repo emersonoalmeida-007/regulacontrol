@@ -1,0 +1,18 @@
+{% load moeda %}
+{% if linhas %}
+<table>
+  <thead><tr><th scope="col">{{ cabecalho }}</th><th scope="col">Licenças</th><th scope="col">Custo anual</th><th scope="col">%</th></tr></thead>
+  <tbody>
+    {% for g in linhas %}
+    <tr>
+      <td>{{ g.rotulo }}</td>
+      <td>{{ g.quantidade }}</td>
+      <td class="sem-quebra">{{ g.custo_anual|reais }}</td>
+      <td class="sem-quebra"><span class="barra-pct" style="--pct: {{ g.percentual|stringformat:'s' }}%">{{ g.percentual|floatformat:1 }}%</span></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>Nenhuma licença com valor informado.</p>
+{% endif %}

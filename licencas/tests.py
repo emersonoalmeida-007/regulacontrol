@@ -3,6 +3,7 @@
 Rodar:  python manage.py test
 """
 from datetime import date, timedelta
+from decimal import Decimal
 from unittest import mock
 
 from django.contrib.auth.models import Group, User
@@ -11,7 +12,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from . import alertas, brasilapi, consultas
+from . import alertas, brasilapi, consultas, custos
 from .forms import LicencaForm, UnidadeForm
 from .models import Licenca, OrgaoEmissor, Renovacao, Status, TipoLicenca, Unidade, calcular_status
 
@@ -225,6 +226,110 @@ class ApiTests(Base):
         dados = self.client.get("/api/resumo/").json()
         self.assertEqual(dados["total"], 1)
         self.assertEqual(len(dados["vencimentos_por_mes"]), 12)
+
+
+class CustosTests(Base):
+    def test_custo_anual_por_periodicidade(self):
+        mensal = self.criar_licenca(100, valor=Decimal("100.00"), periodicidade="mensal")
+        semestral = self.criar_licenca(100, valor=Decimal("1000.00"), periodicidade="semestral")
+        anual = self.criar_licenca(100, valor=Decimal("5000.00"), periodicidade="anual")
+        sem_valor = self.criar_licenca(100)
+        self.assertEqual(mensal.custo_anual, Decimal("1200.00"))
+        self.assertEqual(semestral.custo_anual, Decimal("2000.00"))
+        self.assertEqual(anual.custo_anual, Decimal("5000.00"))
+        self.assertIsNone(sem_valor.custo_anual)
+
+    def test_resumo_soma_e_agrupa(self):
+        self.unidade.porte = "grande_i"
+        self.unidade.save()
+        self.criar_licenca(100, valor=Decimal("100.00"), periodicidade="mensal")
+        self.criar_licenca(100, tipo=self.avcb, valor=Decimal("800.00"), periodicidade="anual")
+        self.criar_licenca(100)  # sem valor
+        r = custos.resumo_custos()
+        self.assertEqual(r["total_anual"], Decimal("2000.00"))
+        self.assertEqual(r["media_mensal"], Decimal("166.67"))
+        self.assertEqual((r["qtd_com_valor"], r["qtd_sem_valor"]), (2, 1))
+        self.assertEqual(r["por_porte"][0]["rotulo"], "Grande Porte – Grupo I")
+        anvisa = next(g for g in r["por_orgao"] if g["rotulo"] == "ANVISA")
+        self.assertEqual(anvisa["custo_anual"], Decimal("1200.00"))
+        self.assertEqual(anvisa["percentual"], Decimal("60.0"))
+
+    def test_fluxo_de_pagamentos(self):
+        hoje = date(2027, 3, 15)
+        validade = lambda d: dict(data_emissao=d - timedelta(days=200), data_validade=d)  # noqa: E731
+        Licenca.objects.create(tipo=self.afe, unidade=self.unidade, numero="M", valor=Decimal("100"),
+                               periodicidade="mensal", **validade(date(2027, 12, 1)))
+        Licenca.objects.create(tipo=self.afe, unidade=self.unidade, numero="S", valor=Decimal("600"),
+                               periodicidade="semestral", **validade(date(2027, 5, 10)))
+        Licenca.objects.create(tipo=self.afe, unidade=self.unidade, numero="A", valor=Decimal("2400"),
+                               periodicidade="anual", **validade(date(2027, 8, 20)))
+        Licenca.objects.create(tipo=self.afe, unidade=self.unidade, numero="ATRASO", valor=Decimal("50"),
+                               periodicidade="anual", **validade(date(2027, 1, 5)))
+        fluxo = {m["mes"]: m["valor"] for m in custos.fluxo_pagamentos(hoje=hoje)}
+        self.assertEqual(len(fluxo), 12)
+        self.assertEqual(fluxo["03/2027"], Decimal("150"))   # mensal + anual em atraso
+        self.assertEqual(fluxo["05/2027"], Decimal("700"))   # mensal + semestral
+        self.assertEqual(fluxo["08/2027"], Decimal("2500"))  # mensal + anual
+        self.assertEqual(fluxo["11/2027"], Decimal("700"))   # mensal + semestral (6 meses depois)
+        self.assertEqual(fluxo["02/2028"], Decimal("100"))   # só mensal
+
+    def test_valor_aceita_formato_brasileiro(self):
+        form = LicencaForm(data={
+            "tipo": self.afe.pk, "unidade": self.unidade.pk, "numero": "X", "data_emissao": "2027-01-01",
+            "data_validade": "2028-01-01", "valor": "R$ 1.250,50", "periodicidade": "anual", "ativa": True,
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data["valor"], Decimal("1250.50"))
+
+    def test_relatorio_e_csv(self):
+        self.client.force_login(self.consulta)
+        self.criar_licenca(100, valor=Decimal("1000.00"), periodicidade="semestral", numero="CUSTO-1")
+        resp = self.client.get(reverse("licencas:relatorio_custos"))
+        self.assertContains(resp, "R$ 2.000,00")
+        csv_txt = self.client.get(reverse("licencas:exportar_custos")).content.decode("utf-8")
+        self.assertIn("2000,00", csv_txt)
+        self.assertEqual(self.client.get("/api/custos/").json()["total_anual"], 2000.0)
+
+    def test_unidade_guarda_porte(self):
+        self.client.force_login(self.analista)
+        resp = self.client.post(reverse("licencas:unidade_editar", args=[self.unidade.pk]), {
+            "cnpj": self.unidade.cnpj, "nome": "CD Teste", "porte": "epp",
+        })
+        self.assertRedirects(resp, reverse("licencas:unidades"))
+        self.unidade.refresh_from_db()
+        self.assertEqual(self.unidade.get_porte_display(), "Empresa de Pequeno Porte (EPP)")
+
+
+class DiasAvisoTests(Base):
+    def caso(self, dias_aviso, dias_ate_vencer):
+        lic = self.criar_licenca(dias_ate_vencer, dias_aviso=dias_aviso)
+        return lic.deve_alertar()
+
+    def test_padrao(self):
+        self.assertTrue(self.caso(None, 90))
+        self.assertTrue(self.caso(None, 60))
+        self.assertFalse(self.caso(None, 45))
+        self.assertTrue(self.caso(None, 30))
+        self.assertTrue(self.caso(None, -3))
+
+    def test_aviso_personalizado_maior_que_30(self):
+        self.assertTrue(self.caso(120, 120))
+        self.assertFalse(self.caso(120, 90))  # substitui os marcos de 90 e 60
+        self.assertTrue(self.caso(120, 30))
+
+    def test_aviso_personalizado_menor_que_30(self):
+        self.assertFalse(self.caso(15, 30))
+        self.assertFalse(self.caso(15, 16))
+        self.assertTrue(self.caso(15, 15))
+        self.assertTrue(self.caso(15, 2))
+
+    def test_alerta_usa_dias_personalizados(self):
+        self.criar_licenca(120, numero="AVISO-120", dias_aviso=120)
+        self.criar_licenca(120, tipo=self.avcb, numero="SEM-AVISO")
+        alertas.enviar_alertas()
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("vence em 120 dia(s)", mail.outbox[0].body)
+        self.assertNotIn("AVCB", mail.outbox[0].body)
 
 
 class AlertasTests(Base):

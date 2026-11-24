@@ -1,8 +1,9 @@
 """Modelos do RegulaControl: unidades, órgãos, tipos de licença, licenças e renovações."""
 from datetime import date
+from decimal import Decimal
 
 from django.conf import settings
-from django.core.validators import RegexValidator
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
 from django.urls import reverse
 from django.utils import timezone
@@ -39,12 +40,43 @@ def calcular_status(data_validade: date, hoje: date | None = None) -> str:
 cnpj_validator = RegexValidator(r"^\d{14}$", "Informe o CNPJ com 14 números, sem pontos ou barras.")
 
 
+class Porte(models.TextChoices):
+    """Porte da empresa por faturamento anual, usado por órgãos como a Anvisa para definir taxas."""
+
+    GRANDE_I = "grande_i", "Grande Porte – Grupo I"
+    GRANDE_II = "grande_ii", "Grande Porte – Grupo II"
+    MEDIO_III = "medio_iii", "Médio Porte – Grupo III"
+    MEDIO_IV = "medio_iv", "Médio Porte – Grupo IV"
+    EPP = "epp", "Empresa de Pequeno Porte (EPP)"
+    ME = "me", "Microempresa (ME)"
+
+
+class Periodicidade(models.TextChoices):
+    """De quanto em quanto tempo o valor da licença é pago."""
+
+    MENSAL = "mensal", "Mensal"
+    SEMESTRAL = "semestral", "Semestral"
+    ANUAL = "anual", "Anual"
+
+
+# Quantas vezes por ano cada periodicidade é paga, e de quantos em quantos meses.
+PAGAMENTOS_POR_ANO = {Periodicidade.MENSAL: 12, Periodicidade.SEMESTRAL: 2, Periodicidade.ANUAL: 1}
+MESES_ENTRE_PAGAMENTOS = {Periodicidade.MENSAL: 1, Periodicidade.SEMESTRAL: 6, Periodicidade.ANUAL: 12}
+
+
 class Unidade(models.Model):
     """Estabelecimento da empresa (matriz ou filial) que precisa de licenças."""
 
     nome = models.CharField("nome da unidade", max_length=120)
     cnpj = models.CharField("CNPJ", max_length=14, unique=True, validators=[cnpj_validator])
     razao_social = models.CharField("razão social", max_length=200, blank=True)
+    porte = models.CharField(
+        "porte da empresa",
+        max_length=10,
+        choices=Porte.choices,
+        blank=True,
+        help_text="Classificação por faturamento anual; confira as faixas na norma vigente do órgão.",
+    )
     logradouro = models.CharField(max_length=200, blank=True)
     municipio = models.CharField("município", max_length=100, blank=True)
     uf = models.CharField("UF", max_length=2, blank=True)
@@ -110,6 +142,25 @@ class Licenca(models.Model):
         related_name="licencas",
         verbose_name="responsável",
     )
+    valor = models.DecimalField(
+        "valor (R$)",
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(Decimal("0"))],
+        help_text="Valor pago a cada período (taxa, renovação ou mensalidade).",
+    )
+    periodicidade = models.CharField(
+        "periodicidade do pagamento", max_length=10, choices=Periodicidade.choices, default=Periodicidade.ANUAL
+    )
+    dias_aviso = models.PositiveSmallIntegerField(
+        "avisar quantos dias antes",
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(365)],
+        help_text="Em branco = padrão: avisos com 90 e 60 dias e diários nos últimos 30 dias.",
+    )
     arquivo = models.FileField("arquivo PDF", upload_to="licencas/%Y/", blank=True)
     observacoes = models.TextField("observações", blank=True)
     ativa = models.BooleanField(default=True, help_text="Desmarque se a licença deixou de ser necessária.")
@@ -147,6 +198,25 @@ class Licenca(models.Model):
     @property
     def dias_atraso(self):
         return max(0, -self.dias_restantes)
+
+    @property
+    def custo_anual(self) -> Decimal | None:
+        """Valor convertido para 12 meses, para comparar licenças de periodicidades diferentes."""
+        if self.valor is None:
+            return None
+        return self.valor * PAGAMENTOS_POR_ANO[self.periodicidade]
+
+    def deve_alertar(self, hoje: date | None = None) -> bool:
+        """Regra do aviso por e-mail.
+
+        Padrão (dias_aviso vazio): no dia em que faltam 90 e 60 dias, e todo dia nos últimos 30 (e depois de vencer).
+        Personalizado (dias_aviso = N): no dia em que faltam N dias, e todo dia a partir de min(N, 30).
+        """
+        hoje = hoje or timezone.localdate()
+        dias = (self.data_validade - hoje).days
+        if self.dias_aviso:
+            return dias == self.dias_aviso or dias <= min(self.dias_aviso, 30)
+        return dias in (90, 60) or dias <= 30
 
 
 class Renovacao(models.Model):

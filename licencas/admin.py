@@ -5,7 +5,8 @@ from .models import Licenca, OrgaoEmissor, Renovacao, TipoLicenca, Unidade
 
 @admin.register(Unidade)
 class UnidadeAdmin(admin.ModelAdmin):
-    list_display = ["nome", "cnpj_formatado", "municipio", "uf"]
+    list_display = ["nome", "cnpj_formatado", "porte", "municipio", "uf"]
+    list_filter = ["porte"]
     search_fields = ["nome", "cnpj", "razao_social"]
 
 
@@ -28,8 +29,8 @@ class RenovacaoInline(admin.TabularInline):
 
 @admin.register(Licenca)
 class LicencaAdmin(admin.ModelAdmin):
-    list_display = ["tipo", "unidade", "numero", "data_validade", "status_label", "responsavel", "ativa"]
-    list_filter = ["tipo__orgao", "unidade", "ativa"]
+    list_display = ["tipo", "unidade", "numero", "data_validade", "status_label", "valor", "periodicidade", "responsavel", "ativa"]
+    list_filter = ["tipo__orgao", "unidade", "periodicidade", "ativa"]
     search_fields = ["numero", "tipo__nome", "unidade__nome"]
     date_hierarchy = "data_validade"
     inlines = [RenovacaoInline]

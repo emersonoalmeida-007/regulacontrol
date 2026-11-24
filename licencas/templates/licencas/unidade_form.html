@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% load static %}
-{% block titulo %}Nova unidade{% endblock %}
+{% block titulo %}{% if object %}Editar unidade{% else %}Nova unidade{% endif %}{% endblock %}
 {% block conteudo %}
-<h1>Nova unidade</h1>
+<h1>{% if object %}Editar {{ object.nome }}{% else %}Nova unidade{% endif %}</h1>
 <form method="post" class="cartao formulario" novalidate data-url-cnpj="{% url 'licencas:buscar_cnpj' '00000000000000' %}">
   {% csrf_token %}
   {% for campo in form %}{% include "includes/campo.html" %}{% endfor %}
