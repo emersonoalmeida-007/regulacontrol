@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% load static %}
+{% block titulo %}Nova unidade{% endblock %}
+{% block conteudo %}
+<h1>Nova unidade</h1>
+<form method="post" class="cartao formulario" novalidate data-url-cnpj="{% url 'licencas:buscar_cnpj' '00000000000000' %}">
+  {% csrf_token %}
+  {% for campo in form %}{% include "includes/campo.html" %}{% endfor %}
+  <p id="aviso-cnpj" class="ajuda" role="status" aria-live="polite"></p>
+  <div class="acoes">
+    <button type="submit" class="botao">Salvar</button>
+    <a class="botao secundario" href="{% url 'licencas:unidades' %}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/cnpj.js' %}"></script>{% endblock %}

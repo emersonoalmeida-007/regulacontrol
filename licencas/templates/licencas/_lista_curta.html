@@ -1,0 +1,13 @@
+{% if itens %}
+<ul class="lista-curta">
+  {% for licenca in itens %}
+  <li>
+    <a href="{{ licenca.get_absolute_url }}">{{ licenca.tipo.nome }}</a>
+    <span class="ajuda">{{ licenca.unidade.nome }} · validade {{ licenca.data_validade|date:"d/m/Y" }}</span>
+    {% include "includes/status.html" %}
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p>{{ vazio }}</p>
+{% endif %}

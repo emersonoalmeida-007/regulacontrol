@@ -1,0 +1,7 @@
+{# Campo de formulário acessível: rótulo ligado ao campo, ajuda e erro anunciados por leitor de tela. #}
+<div class="campo{% if campo.errors %} com-erro{% endif %}">
+  <label for="{{ campo.id_for_label }}">{{ campo.label }}{% if campo.field.required %} <span aria-hidden="true">*</span><span class="sr">(obrigatório)</span>{% endif %}</label>
+  {{ campo }}
+  {% if campo.help_text %}<p class="ajuda" id="{{ campo.auto_id }}_helptext">{{ campo.help_text }}</p>{% endif %}
+  {% for erro in campo.errors %}<p class="erro" id="{{ campo.id_for_label }}_erro" role="alert">{{ erro }}</p>{% endfor %}
+</div>

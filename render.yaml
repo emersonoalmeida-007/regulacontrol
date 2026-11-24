@@ -1,0 +1,31 @@
+# Deploy no Render (nuvem). No painel do Render: New > Blueprint > escolha o repositório.
+# Confira os limites do plano gratuito em 2027.1 antes de publicar.
+# O alerta diário roda pelo GitHub Actions (.github/workflows/alertas.yml), que é gratuito.
+databases:
+  - name: regulacontrol-db
+    plan: free
+    databaseName: regulacontrol
+    user: regulacontrol
+
+services:
+  - type: web
+    name: regulacontrol
+    runtime: python
+    plan: free
+    buildCommand: bash build.sh
+    startCommand: gunicorn config.wsgi:application
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13.1"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: regulacontrol-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "0"
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"
+      - key: CSRF_TRUSTED_ORIGINS
+        value: "https://*.onrender.com"

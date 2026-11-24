@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block titulo %}Renovar licença{% endblock %}
+{% block conteudo %}
+<h1>Registrar renovação</h1>
+<p>{{ licenca }} · validade atual {{ licenca.data_validade|date:"d/m/Y" }} · {% include "includes/status.html" %}</p>
+<form method="post" class="cartao formulario" novalidate>
+  {% csrf_token %}
+  {% for campo in form %}{% include "includes/campo.html" %}{% endfor %}
+  <div class="acoes">
+    <button type="submit" class="botao">Registrar renovação</button>
+    <a class="botao secundario" href="{{ licenca.get_absolute_url }}">Cancelar</a>
+  </div>
+</form>
+{% endblock %}

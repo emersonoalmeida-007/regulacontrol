@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% load static %}
+{% block titulo %}Painel de conformidade{% endblock %}
+{% block conteudo %}
+<h1>Painel de conformidade</h1>
+
+<section aria-labelledby="t-indicadores">
+  <h2 id="t-indicadores" class="sr">Indicadores</h2>
+  <ul class="indicadores">
+    <li class="indicador destaque">
+      <span class="valor">{{ resumo.conformidade_pct|floatformat:1 }}%</span>
+      <span class="rotulo">das licenças em dia</span>
+    </li>
+    <li class="indicador ativas"><span class="valor">{{ resumo.total }}</span><span class="rotulo">licenças ativas</span></li>
+    <li class="indicador vencidas"><span class="valor">{{ resumo.por_status.vencida }}</span><span class="rotulo">vencidas</span></li>
+    <li class="indicador proximas"><span class="valor">{{ resumo.por_status.vence_30 }}</span><span class="rotulo">vencem em até 30 dias</span></li>
+    <li class="indicador proximas"><span class="valor">{{ resumo.por_status.vence_60|add:resumo.por_status.vence_90 }}</span><span class="rotulo">vencem em 31 a 90 dias</span></li>
+  </ul>
+</section>
+
+<div class="grade-2">
+  <section class="cartao" aria-labelledby="t-venc">
+    <h2 id="t-venc">Vencimentos nos próximos 12 meses</h2>
+    <canvas id="grafico-vencimentos" role="img" aria-label="Gráfico de barras com a quantidade de licenças que vencem em cada mês. Os mesmos dados estão na tabela abaixo."></canvas>
+    <details>
+      <summary>Ver dados em tabela</summary>
+      <table>
+        <caption class="sr">Vencimentos por mês</caption>
+        <thead><tr><th scope="col">Mês</th><th scope="col">Licenças</th></tr></thead>
+        <tbody>{% for v in dados_graficos.vencimentos %}<tr><td>{{ v.mes }}</td><td>{{ v.quantidade }}</td></tr>{% endfor %}</tbody>
+      </table>
+    </details>
+  </section>
+
+  <section class="cartao" aria-labelledby="t-pend">
+    <h2 id="t-pend">Pendências por órgão</h2>
+    <p class="ajuda">Licenças vencidas ou que vencem em até 30 dias.</p>
+    {% if dados_graficos.pendencias %}
+    <canvas id="grafico-pendencias" role="img" aria-label="Gráfico de barras com as pendências por órgão emissor. Os mesmos dados estão na tabela abaixo."></canvas>
+    <details>
+      <summary>Ver dados em tabela</summary>
+      <table>
+        <caption class="sr">Pendências por órgão</caption>
+        <thead><tr><th scope="col">Órgão</th><th scope="col">Licenças</th></tr></thead>
+        <tbody>{% for p in dados_graficos.pendencias %}<tr><td>{{ p.orgao }}</td><td>{{ p.quantidade }}</td></tr>{% endfor %}</tbody>
+      </table>
+    </details>
+    {% else %}
+    <p>Nenhuma pendência. Todas as licenças estão com mais de 30 dias de validade.</p>
+    {% endif %}
+  </section>
+</div>
+
+<div class="grade-2">
+  <section class="cartao" aria-labelledby="t-vencidas">
+    <h2 id="t-vencidas">Vencidas</h2>
+    {% include "licencas/_lista_curta.html" with itens=vencidas vazio="Nenhuma licença vencida." %}
+  </section>
+  <section class="cartao" aria-labelledby="t-proximas">
+    <h2 id="t-proximas">Vencem em até 30 dias</h2>
+    {% include "licencas/_lista_curta.html" with itens=proximas vazio="Nenhuma licença vence nos próximos 30 dias." %}
+  </section>
+</div>
+
+{{ dados_graficos|json_script:"dados-graficos" }}
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/painel.js' %}"></script>
+{% endblock %}

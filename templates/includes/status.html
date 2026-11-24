@@ -1,0 +1,2 @@
+{# Status com ícone + texto: a informação nunca depende só da cor (WCAG 1.4.1). #}
+<span class="status status-{{ licenca.status }}"><span aria-hidden="true">{% if licenca.status == 'vencida' %}✖{% elif licenca.status == 'vence_30' %}▲{% elif licenca.status == 'vence_60' or licenca.status == 'vence_90' %}●{% else %}✔{% endif %}</span> {{ licenca.status_label }}</span>

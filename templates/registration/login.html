@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% load static %}
+{% block titulo %}Entrar{% endblock %}
+{% block conteudo_publico %}
+<div class="entrada-grade">
+  <section class="entrada-marca" aria-label="Sobre o RegulaControl">
+    <a class="marca" href="{% url 'login' %}"><img src="{% static 'img/logo-simbolo.svg' %}" alt="" width="40" height="40"><span>Regula<span class="marca-destaque">Control</span></span></a>
+    <div>
+      <h2>Licenças em dia, operação sem surpresas.</h2>
+      <ul class="entrada-lista">
+        <li>Status automático de cada licença por data de validade</li>
+        <li>Alertas por e-mail antes do vencimento</li>
+        <li>Painel de conformidade por unidade e órgão</li>
+      </ul>
+    </div>
+    <p class="entrada-rodape">Projeto Integrador em Computação II · UNIVESP</p>
+  </section>
+
+  <section class="entrada-form">
+    <div class="entrada-caixa">
+      <img class="logo-entrada" src="{% static 'img/logo.svg' %}" alt="RegulaControl" width="220" height="47">
+      <h1>Entrar</h1>
+      <p class="ajuda">Acesse o controle de licenças regulatórias.</p>
+      {% if form.errors %}
+        <p class="mensagem error" role="alert">Usuário ou senha incorretos. Tente novamente.</p>
+      {% endif %}
+      <form method="post" novalidate>
+        {% csrf_token %}
+        <div class="campo">
+          <label for="id_username">Usuário</label>
+          <input type="text" name="username" id="id_username" autocomplete="username" required autofocus>
+        </div>
+        <div class="campo">
+          <label for="id_password">Senha</label>
+          <input type="password" name="password" id="id_password" autocomplete="current-password" required>
+        </div>
+        <input type="hidden" name="next" value="{{ next }}">
+        <button type="submit" class="botao largo">Entrar</button>
+      </form>
+    </div>
+  </section>
+</div>
+{% endblock %}

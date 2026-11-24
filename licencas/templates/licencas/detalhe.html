@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block titulo %}{{ licenca.tipo.nome }}{% endblock %}
+{% block conteudo %}
+<p><a href="{% url 'licencas:lista' %}">← Voltar para licenças</a></p>
+<div class="cabecalho">
+  <h1>{{ licenca.tipo.nome }}</h1>
+  {% if pode_editar %}
+  <div class="acoes">
+    <a class="botao secundario" href="{% url 'licencas:editar' licenca.pk %}">Editar</a>
+    <a class="botao" href="{% url 'licencas:renovar' licenca.pk %}">Registrar renovação</a>
+  </div>
+  {% endif %}
+</div>
+
+<section class="cartao">
+  <p>{% include "includes/status.html" %}
+    {% if licenca.dias_restantes >= 0 %}— faltam {{ licenca.dias_restantes }} dia{{ licenca.dias_restantes|pluralize }}{% else %}— vencida há {{ licenca.dias_atraso }} dia{{ licenca.dias_atraso|pluralize }}{% endif %}
+  </p>
+  <dl class="dados">
+    <dt>Órgão emissor</dt><dd>{{ licenca.tipo.orgao.nome }} ({{ licenca.tipo.orgao.sigla }})</dd>
+    <dt>Unidade</dt><dd>{{ licenca.unidade.nome }} · CNPJ {{ licenca.unidade.cnpj_formatado }}</dd>
+    <dt>Número/protocolo</dt><dd>{{ licenca.numero }}</dd>
+    <dt>Emissão</dt><dd>{{ licenca.data_emissao|date:"d/m/Y" }}</dd>
+    <dt>Validade</dt><dd>{{ licenca.data_validade|date:"d/m/Y" }}</dd>
+    <dt>Responsável</dt><dd>{{ licenca.responsavel.get_full_name|default:"Não definido" }}</dd>
+    <dt>Documento</dt><dd>{% if licenca.arquivo %}<a href="{{ licenca.arquivo.url }}">Abrir PDF da licença</a>{% else %}Nenhum arquivo anexado{% endif %}</dd>
+    {% if licenca.observacoes %}<dt>Observações</dt><dd>{{ licenca.observacoes|linebreaksbr }}</dd>{% endif %}
+  </dl>
+</section>
+
+<section class="cartao" aria-labelledby="t-hist">
+  <h2 id="t-hist">Histórico de renovações</h2>
+  {% with renovacoes=licenca.renovacoes.all %}
+  {% if renovacoes %}
+  <table>
+    <thead><tr><th scope="col">Registrada em</th><th scope="col">Validade anterior</th><th scope="col">Nova validade</th><th scope="col">Por</th><th scope="col">Observação</th></tr></thead>
+    <tbody>
+      {% for r in renovacoes %}
+      <tr>
+        <td>{{ r.registrado_em|date:"d/m/Y H:i" }}</td>
+        <td>{{ r.validade_anterior|date:"d/m/Y" }}</td>
+        <td>{{ r.nova_validade|date:"d/m/Y" }}</td>
+        <td>{{ r.registrado_por.get_full_name|default:r.registrado_por.username }}</td>
+        <td>{{ r.observacao|default:"—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>Nenhuma renovação registrada.</p>
+  {% endif %}
+  {% endwith %}
+</section>
+{% endblock %}

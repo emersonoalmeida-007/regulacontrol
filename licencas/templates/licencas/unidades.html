@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block titulo %}Unidades{% endblock %}
+{% block conteudo %}
+<div class="cabecalho">
+  <h1>Unidades</h1>
+  {% if pode_editar %}<div class="acoes"><a class="botao" href="{% url 'licencas:unidade_criar' %}">Nova unidade</a></div>{% endif %}
+</div>
+{% if unidades %}
+<div class="rolagem" tabindex="0" role="region" aria-label="Tabela de unidades">
+<table>
+  <thead><tr><th scope="col">Unidade</th><th scope="col">CNPJ</th><th scope="col">Razão social</th><th scope="col">Município/UF</th><th scope="col">Licenças</th></tr></thead>
+  <tbody>
+    {% for u in unidades %}
+    <tr>
+      <td>{{ u.nome }}</td>
+      <td>{{ u.cnpj_formatado }}</td>
+      <td>{{ u.razao_social|default:"—" }}</td>
+      <td>{{ u.municipio }}{% if u.uf %}/{{ u.uf }}{% endif %}</td>
+      <td><a href="{% url 'licencas:lista' %}?unidade={{ u.pk }}">Ver licenças ({{ u.licencas.count }})</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p>Nenhuma unidade cadastrada.</p>
+{% endif %}
+{% endblock %}

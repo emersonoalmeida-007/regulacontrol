@@ -1,0 +1,32 @@
+<p class="contagem">{{ licencas|length }} licença{{ licencas|length|pluralize:"s" }} encontrada{{ licencas|length|pluralize:"s" }}.</p>
+{% if licencas %}
+<div class="rolagem" tabindex="0" role="region" aria-label="Tabela de licenças">
+<table>
+  <caption class="sr">Licenças ordenadas pela data de validade</caption>
+  <thead>
+    <tr>
+      <th scope="col">Licença</th>
+      <th scope="col">Órgão</th>
+      <th scope="col">Unidade</th>
+      <th scope="col">Número</th>
+      <th scope="col">Validade</th>
+      <th scope="col">Status</th>
+      <th scope="col">Responsável</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for licenca in licencas %}
+    <tr>
+      <td><a href="{{ licenca.get_absolute_url }}">{{ licenca.tipo.nome }}</a></td>
+      <td>{{ licenca.tipo.orgao.sigla }}</td>
+      <td>{{ licenca.unidade.nome }}</td>
+      <td class="sem-quebra">{{ licenca.numero }}</td>
+      <td class="sem-quebra">{{ licenca.data_validade|date:"d/m/Y" }}</td>
+      <td>{% include "includes/status.html" %}</td>
+      <td>{{ licenca.responsavel.get_full_name|default:"—" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}

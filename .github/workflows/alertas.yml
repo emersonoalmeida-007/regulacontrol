@@ -1,0 +1,33 @@
+# Alerta diário de vencimentos (RF08), gratuito pelo GitHub Actions.
+# Roda todo dia às 8h de Brasília (11h UTC) e também pode ser disparado à mão (aba Actions > Run workflow).
+# Configure em Settings > Secrets and variables > Actions:
+#   DATABASE_URL         External Database URL do PostgreSQL do Render
+#   EMAIL_HOST           ex.: smtp.gmail.com
+#   EMAIL_HOST_USER      conta que envia
+#   EMAIL_HOST_PASSWORD  senha de app da conta (nunca a senha normal)
+name: Alertas diários
+
+on:
+  schedule:
+    - cron: "0 11 * * *"
+  workflow_dispatch:
+
+jobs:
+  alertas:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SECRET_KEY: somente-para-o-comando-de-alertas
+      EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
+      EMAIL_HOST: ${{ secrets.EMAIL_HOST }}
+      EMAIL_HOST_USER: ${{ secrets.EMAIL_HOST_USER }}
+      EMAIL_HOST_PASSWORD: ${{ secrets.EMAIL_HOST_PASSWORD }}
+      DEFAULT_FROM_EMAIL: RegulaControl <${{ secrets.EMAIL_HOST_USER }}>
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python manage.py enviar_alertas
