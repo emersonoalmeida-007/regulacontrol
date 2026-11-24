@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static moeda %}
+{% load static %}
 {% block titulo %}Relatório de custos{% endblock %}
 {% block conteudo %}
 <div class="cabecalho">
@@ -8,82 +8,39 @@
     <p class="ajuda">Licenças ativas · emitido em {% now "d/m/Y \à\s H:i" %}</p>
   </div>
   <div class="acoes nao-imprimir">
-    <a class="botao secundario" href="{% url 'licencas:exportar_custos' %}">Exportar CSV</a>
+    <a class="botao secundario" id="link-exportar" href="{% url 'licencas:exportar_custos' %}?{{ request.GET.urlencode }}">Exportar CSV</a>
     <button type="button" class="botao" onclick="window.print()">Imprimir / PDF</button>
   </div>
 </div>
 
-<ul class="indicadores">
-  <li class="indicador destaque"><span class="valor moeda">{{ resumo.total_anual|reais }}</span><span class="rotulo">custo anual previsto</span></li>
-  <li class="indicador"><span class="valor moeda">{{ resumo.media_mensal|reais }}</span><span class="rotulo">média mensal</span></li>
-  <li class="indicador"><span class="valor moeda">{{ total_fluxo|reais }}</span><span class="rotulo">a pagar nos próximos 12 meses</span></li>
-  <li class="indicador ativas"><span class="valor">{{ resumo.qtd_com_valor }}</span><span class="rotulo">licenças com valor</span></li>
-  <li class="indicador {% if resumo.qtd_sem_valor %}proximas{% endif %}"><span class="valor">{{ resumo.qtd_sem_valor }}</span><span class="rotulo">sem valor informado</span></li>
-</ul>
-
-<section class="cartao" aria-labelledby="t-fluxo">
-  <h2 id="t-fluxo">Fluxo de pagamentos – próximos 12 meses</h2>
-  <p class="ajuda">Mensal: todo mês · Semestral: no mês da validade e a cada 6 meses · Anual: no mês da validade. Renovações em atraso entram no mês atual.</p>
-  <canvas id="grafico-fluxo" role="img" aria-label="Gráfico de barras com o valor a pagar em cada mês. Os mesmos dados estão na tabela abaixo." height="90"></canvas>
-  <details>
-    <summary>Ver dados em tabela</summary>
-    <table>
-      <thead><tr><th scope="col">Mês</th><th scope="col">Pagamentos</th><th scope="col">Valor</th></tr></thead>
-      <tbody>{% for m in fluxo %}<tr><td>{{ m.mes }}</td><td>{{ m.quantidade }}</td><td class="sem-quebra">{{ m.valor|reais }}</td></tr>{% endfor %}</tbody>
-      <tfoot><tr><th scope="row" colspan="2">Total</th><th class="sem-quebra">{{ total_fluxo|reais }}</th></tr></tfoot>
-    </table>
+<form id="filtros-custos" class="filtros-multi nao-imprimir" method="get" role="search" aria-label="Filtrar custos">
+  {% for f in filtros %}
+  <details class="multi">
+    <summary>
+      {{ f.titulo }}
+      {% if f.qtd_marcados %}<span class="contador">{{ f.qtd_marcados }}</span>{% else %}<span class="ajuda">Todos</span>{% endif %}
+    </summary>
+    <fieldset>
+      <legend class="sr">{{ f.titulo }}: marque uma ou mais opções</legend>
+      <div class="multi-opcoes">
+        {% for op in f.opcoes %}
+        <label class="opcao"><input type="checkbox" name="{{ f.nome }}" value="{{ op.valor }}" {% if op.marcado %}checked{% endif %}> {{ op.rotulo }}</label>
+        {% endfor %}
+      </div>
+      <div class="multi-acoes">
+        <button type="button" class="link-botao" data-marcar="todos">Marcar todos</button>
+        <button type="button" class="link-botao" data-marcar="nenhum">Limpar</button>
+      </div>
+    </fieldset>
   </details>
-</section>
+  {% endfor %}
+  <a class="link-botao limpar-tudo" href="{% url 'licencas:relatorio_custos' %}">Limpar filtros</a>
+  <noscript><button type="submit" class="botao">Filtrar</button></noscript>
+</form>
 
-<div class="grade-2">
-  <section class="cartao" aria-labelledby="t-unid">
-    <h2 id="t-unid">Por unidade e porte</h2>
-    {% include "licencas/_tabela_custos.html" with linhas=resumo.por_unidade cabecalho="Unidade" %}
-  </section>
-  <section class="cartao" aria-labelledby="t-orgao">
-    <h2 id="t-orgao">Por órgão emissor</h2>
-    {% include "licencas/_tabela_custos.html" with linhas=resumo.por_orgao cabecalho="Órgão" %}
-  </section>
+<div id="resultado-custos" aria-live="polite">
+  {% include "licencas/_custos_conteudo.html" %}
 </div>
-<div class="grade-2">
-  <section class="cartao" aria-labelledby="t-porte">
-    <h2 id="t-porte">Por porte da empresa</h2>
-    {% include "licencas/_tabela_custos.html" with linhas=resumo.por_porte cabecalho="Porte" %}
-  </section>
-  <section class="cartao" aria-labelledby="t-per">
-    <h2 id="t-per">Por periodicidade</h2>
-    {% include "licencas/_tabela_custos.html" with linhas=resumo.por_periodicidade cabecalho="Periodicidade" %}
-  </section>
-</div>
-
-<section class="cartao" aria-labelledby="t-det">
-  <h2 id="t-det">Detalhamento por licença</h2>
-  <div class="rolagem" tabindex="0" role="region" aria-label="Tabela de custos por licença">
-  <table>
-    <thead><tr><th scope="col">Unidade</th><th scope="col">Licença</th><th scope="col">Órgão</th><th scope="col">Valor</th><th scope="col">Periodicidade</th><th scope="col">Custo anual</th><th scope="col">Validade</th></tr></thead>
-    <tbody>
-      {% for licenca in licencas %}
-      <tr>
-        <td>{{ licenca.unidade.nome }}</td>
-        <td><a href="{{ licenca.get_absolute_url }}">{{ licenca.tipo.nome }}</a></td>
-        <td>{{ licenca.tipo.orgao.sigla }}</td>
-        <td class="sem-quebra">{{ licenca.valor|reais }}</td>
-        <td>{{ licenca.get_periodicidade_display }}</td>
-        <td class="sem-quebra"><strong>{{ licenca.custo_anual|reais }}</strong></td>
-        <td class="sem-quebra">{{ licenca.data_validade|date:"d/m/Y" }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-    <tfoot><tr><th scope="row" colspan="5">Total anual</th><th class="sem-quebra">{{ resumo.total_anual|reais }}</th><td></td></tr></tfoot>
-  </table>
-  </div>
-  {% if sem_valor %}
-  <p class="mensagem aviso">{{ sem_valor|length }} licença{{ sem_valor|length|pluralize:"s" }} sem valor informado não entra{{ sem_valor|length|pluralize:"m" }} no total:
-    {% for l in sem_valor %}<a href="{% url 'licencas:editar' l.pk %}">{{ l.tipo.nome }} ({{ l.unidade.nome }})</a>{% if not forloop.last %}, {% endif %}{% endfor %}.</p>
-  {% endif %}
-</section>
-
-{{ dados_fluxo|json_script:"dados-fluxo" }}
 {% endblock %}
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>

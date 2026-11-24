@@ -8,6 +8,7 @@ from unittest import mock
 
 from django.contrib.auth.models import Group, User
 from django.core import mail
+from django.http import QueryDict
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -289,6 +290,42 @@ class CustosTests(Base):
         csv_txt = self.client.get(reverse("licencas:exportar_custos")).content.decode("utf-8")
         self.assertIn("2000,00", csv_txt)
         self.assertEqual(self.client.get("/api/custos/").json()["total_anual"], 2000.0)
+
+    def test_filtros_de_multipla_escolha(self):
+        outra = Unidade.objects.create(nome="CD Dois", cnpj="11444777000161", porte="epp")
+        self.criar_licenca(100, valor=Decimal("100.00"), periodicidade="mensal", numero="U1-M")
+        self.criar_licenca(100, tipo=self.avcb, valor=Decimal("500.00"), periodicidade="anual", numero="U1-A")
+        self.criar_licenca(100, unidade=outra, valor=Decimal("300.00"), periodicidade="semestral", numero="U2-S")
+
+        def total(**filtros):
+            qd = QueryDict(mutable=True)
+            for chave, valores in filtros.items():
+                qd.setlist(chave, [str(v) for v in valores])
+            return custos.resumo_custos(qd)["total_anual"]
+
+        self.assertEqual(total(), Decimal("2300.00"))
+        self.assertEqual(total(unidade=[self.unidade.pk]), Decimal("1700.00"))
+        self.assertEqual(total(unidade=[self.unidade.pk, outra.pk]), Decimal("2300.00"))  # OU dentro do filtro
+        self.assertEqual(total(periodicidade=["mensal", "semestral"]), Decimal("1800.00"))
+        self.assertEqual(total(unidade=[self.unidade.pk], periodicidade=["semestral"]), Decimal("0"))  # E entre filtros
+        self.assertEqual(total(tipo=[self.avcb.pk]), Decimal("500.00"))
+        self.assertEqual(total(porte=["epp"]), Decimal("600.00"))
+        self.assertEqual(total(orgao=[self.anvisa.pk]), Decimal("1800.00"))
+
+    def test_relatorio_filtrado_parcial_e_csv(self):
+        self.client.force_login(self.consulta)
+        self.criar_licenca(100, valor=Decimal("100.00"), periodicidade="anual", numero="FICA")
+        self.criar_licenca(100, tipo=self.avcb, valor=Decimal("900.00"), periodicidade="anual", numero="SAI")
+        url = reverse("licencas:relatorio_custos")
+        resp = self.client.get(url, {"tipo": [self.afe.pk], "parcial": "1"})
+        self.assertContains(resp, "R$ 100,00")
+        self.assertContains(resp, "Filtros aplicados")
+        self.assertNotContains(resp, "<html")
+        completo = self.client.get(url, {"tipo": [self.afe.pk]})
+        self.assertContains(completo, f'value="{self.afe.pk}" checked')
+        csv_txt = self.client.get(reverse("licencas:exportar_custos"), {"tipo": [self.avcb.pk]}).content.decode()
+        self.assertIn("900,00", csv_txt)
+        self.assertNotIn("100,00", csv_txt)
 
     def test_unidade_guarda_porte(self):
         self.client.force_login(self.analista)

@@ -45,7 +45,7 @@ class LicencaViewSet(viewsets.ReadOnlyModelViewSet):
 
 @api_view(["GET"])
 def resumo_custos(request):
-    r = custos.resumo_custos()
+    r = custos.resumo_custos(request.query_params)
     return Response({
         "total_anual": r["total_anual"],
         "media_mensal": r["media_mensal"],
@@ -53,7 +53,7 @@ def resumo_custos(request):
         "por_orgao": r["por_orgao"],
         "por_porte": r["por_porte"],
         "por_periodicidade": r["por_periodicidade"],
-        "fluxo_12_meses": custos.fluxo_pagamentos(),
+        "fluxo_12_meses": custos.fluxo_pagamentos(params=request.query_params),
     })
 
 

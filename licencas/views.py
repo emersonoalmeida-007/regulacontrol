@@ -10,7 +10,7 @@ from django.views.generic import CreateView, DetailView, ListView, UpdateView
 
 from . import brasilapi, consultas, custos
 from .forms import LicencaForm, RenovacaoForm, UnidadeForm
-from .models import Licenca, OrgaoEmissor, Status, Unidade
+from .models import Licenca, OrgaoEmissor, Periodicidade, Porte, Status, TipoLicenca, Unidade
 from .permissoes import PodeEditarMixin, pode_editar
 
 
@@ -155,17 +155,47 @@ class UnidadeUpdateView(LoginRequiredMixin, PodeEditarMixin, UpdateView):
 
 @login_required
 def relatorio_custos(request):
-    """Relatório gerencial de custos (valores, periodicidade e fluxo de pagamentos)."""
-    fluxo = custos.fluxo_pagamentos()
+    """Relatório gerencial de custos (valores, periodicidade e fluxo de pagamentos).
+
+    Filtros de múltipla escolha por unidade, tipo de licença, órgão, porte e periodicidade.
+    Com ?parcial=1 devolve só o conteúdo, usado pelo JavaScript para atualizar sem recarregar.
+    """
+    params = request.GET
+    fluxo = custos.fluxo_pagamentos(params=params)
+    filtros = _opcoes_filtros_custos(params)
     contexto = {
-        "resumo": custos.resumo_custos(),
+        "resumo": custos.resumo_custos(params),
         "fluxo": fluxo,
         "total_fluxo": sum((m["valor"] for m in fluxo), custos.ZERO),
         "dados_fluxo": [{"mes": m["mes"], "valor": float(m["valor"])} for m in fluxo],
-        "licencas": custos.licencas_com_valor().order_by("unidade__nome", "tipo__nome"),
-        "sem_valor": consultas.licencas_ativas().filter(valor__isnull=True),
+        "licencas": custos.licencas_com_valor(params).order_by("unidade__nome", "tipo__nome"),
+        "sem_valor": custos.licencas_filtradas(params).filter(valor__isnull=True),
+        "filtros": filtros,
+        "filtros_ativos": [(f["titulo"], op["rotulo"]) for f in filtros for op in f["opcoes"] if op["marcado"]],
     }
-    return render(request, "licencas/relatorio_custos.html", contexto)
+    modelo = "licencas/_custos_conteudo.html" if params.get("parcial") else "licencas/relatorio_custos.html"
+    return render(request, modelo, contexto)
+
+
+def _opcoes_filtros_custos(params) -> list[dict]:
+    """Monta cada grupo de caixas de seleção, marcando o que veio na URL."""
+    grupos = [
+        ("unidade", "Unidades", [(str(u.pk), u.nome) for u in Unidade.objects.all()]),
+        ("tipo", "Licenças", [(str(t.pk), str(t)) for t in TipoLicenca.objects.select_related("orgao")]),
+        ("orgao", "Órgãos", [(str(o.pk), o.sigla) for o in OrgaoEmissor.objects.all()]),
+        ("porte", "Porte", list(Porte.choices)),
+        ("periodicidade", "Periodicidade", list(Periodicidade.choices)),
+    ]
+    filtros = []
+    for nome, titulo, opcoes in grupos:
+        marcados = set(params.getlist(nome))
+        filtros.append({
+            "nome": nome,
+            "titulo": titulo,
+            "qtd_marcados": len(marcados & {v for v, _ in opcoes}),
+            "opcoes": [{"valor": v, "rotulo": r, "marcado": v in marcados} for v, r in opcoes],
+        })
+    return filtros
 
 
 @login_required
@@ -175,7 +205,7 @@ def exportar_custos_csv(request):
     resposta.write("﻿")
     w = csv.writer(resposta, delimiter=";")
     w.writerow(["Unidade", "Porte", "Licença", "Órgão", "Valor", "Periodicidade", "Custo anual", "Validade"])
-    for lic in custos.licencas_com_valor().order_by("unidade__nome", "tipo__nome"):
+    for lic in custos.licencas_com_valor(request.GET).order_by("unidade__nome", "tipo__nome"):
         w.writerow([
             lic.unidade.nome, lic.unidade.get_porte_display(), lic.tipo.nome, lic.tipo.orgao.sigla,
             f"{lic.valor:.2f}".replace(".", ","), lic.get_periodicidade_display(),

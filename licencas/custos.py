@@ -28,13 +28,41 @@ def _rotulo(indice: int) -> str:
     return f"{indice % 12 + 1:02d}/{indice // 12}"
 
 
-def licencas_com_valor():
-    return licencas_ativas().filter(valor__isnull=False)
+FILTROS = ("unidade", "tipo", "orgao", "porte", "periodicidade")
 
 
-def resumo_custos() -> dict:
+def filtrar(qs, params):
+    """Filtros de múltipla escolha do relatório: ?unidade=1&unidade=3&periodicidade=mensal...
+
+    Dentro de um mesmo filtro vale qualquer opção marcada (OU); entre filtros diferentes, todas (E).
+    """
+    if params is None:
+        return qs
+    campos = {
+        "unidade": "unidade_id__in",
+        "tipo": "tipo_id__in",
+        "orgao": "tipo__orgao_id__in",
+        "porte": "unidade__porte__in",
+        "periodicidade": "periodicidade__in",
+    }
+    for nome, lookup in campos.items():
+        valores = [v for v in params.getlist(nome) if v]
+        if valores:
+            qs = qs.filter(**{lookup: valores})
+    return qs
+
+
+def licencas_filtradas(params=None):
+    return filtrar(licencas_ativas(), params)
+
+
+def licencas_com_valor(params=None):
+    return licencas_filtradas(params).filter(valor__isnull=False)
+
+
+def resumo_custos(params=None) -> dict:
     """Indicadores e agrupamentos do relatório gerencial."""
-    licencas = list(licencas_ativas())
+    licencas = list(licencas_filtradas(params))
     com_valor = [lic for lic in licencas if lic.valor is not None]
     total_anual = sum((lic.custo_anual for lic in com_valor), ZERO)
 
@@ -69,7 +97,7 @@ def resumo_custos() -> dict:
     }
 
 
-def fluxo_pagamentos(meses: int = 12, hoje: date | None = None) -> list[dict]:
+def fluxo_pagamentos(meses: int = 12, hoje: date | None = None, params=None) -> list[dict]:
     """Quanto será pago em cada um dos próximos meses, começando pelo mês atual."""
     hoje = hoje or timezone.localdate()
     inicio = _indice_mes(hoje)
@@ -77,7 +105,7 @@ def fluxo_pagamentos(meses: int = 12, hoje: date | None = None) -> list[dict]:
     valores = defaultdict(lambda: ZERO)
     quantidades = defaultdict(int)
 
-    for lic in licencas_com_valor():
+    for lic in licencas_com_valor(params):
         passo = MESES_ENTRE_PAGAMENTOS[lic.periodicidade]
         if lic.periodicidade == Periodicidade.MENSAL:
             primeiro = inicio
