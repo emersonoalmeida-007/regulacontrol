@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, DetailView, ListView, UpdateView
 
-from . import brasilapi, consultas, custos, filtros
+from . import analises, brasilapi, consultas, custos, filtros
 from .forms import LicencaForm, RenovacaoForm, UnidadeForm
 from .models import Licenca, Status, Unidade
 from .permissoes import PodeEditarMixin, pode_editar
@@ -174,6 +174,44 @@ def relatorio_custos(request):
         "filtros_ativos": filtros.ativos(lista_filtros),
     }
     modelo = "licencas/_custos_conteudo.html" if params.get("parcial") else "licencas/relatorio_custos.html"
+    return render(request, modelo, contexto)
+
+
+PERIODOS_ANALISE = (6, 12, 24)
+
+
+@login_required
+def analises_view(request):
+    """Tela Análises: cenário por unidade, evolução histórica e previsão, com filtros."""
+    params = request.GET
+    try:
+        meses = int(params.get("periodo", 12))
+    except ValueError:
+        meses = 12
+    meses = meses if meses in PERIODOS_ANALISE else 12
+    lista_filtros = filtros.filtros_analises(params)
+    dados = analises.montar(params, meses=meses)
+    graficos = {
+        "cenario": [
+            {"unidade": c["unidade"].nome, "vigente": c["vigente"], "vence_90": c["vence_90"],
+             "vence_30": c["vence_30"], "vencida": c["vencida"]}
+            for c in dados["cenario"]
+        ],
+        "evolucao": dados["evolucao"],
+        "renovacoes": dados["renovacoes"],
+        "vencimentos": dados["vencimentos"],
+        "antecedencia": dados["antecedencia"],
+    }
+    contexto = {
+        **dados,
+        "meses": meses,
+        "periodos": PERIODOS_ANALISE,
+        "altura_cenario": max(160, 56 * len(dados["cenario"]) + 60),
+        "graficos": graficos,
+        "filtros": lista_filtros,
+        "filtros_ativos": filtros.ativos(lista_filtros),
+    }
+    modelo = "licencas/_analises_conteudo.html" if params.get("parcial") else "licencas/analises.html"
     return render(request, modelo, contexto)
 
 

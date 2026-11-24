@@ -42,6 +42,15 @@ def filtros_licencas(params):
     ])
 
 
+def filtros_analises(params):
+    return montar(params, [
+        _unidades(),
+        _tipos(),
+        _orgaos(),
+        ("porte", "Porte", list(Porte.choices)),
+    ])
+
+
 def filtros_custos(params):
     return montar(params, [
         _unidades(),

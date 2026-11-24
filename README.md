@@ -13,6 +13,9 @@ Projeto Integrador em Computação II (PJI240) – UNIVESP, 2027.1.
 - Controle de custos: valor e periodicidade (mensal, semestral, anual) de cada licença e porte da empresa
 - Relatório gerencial de custos: custo anual, fluxo de pagamentos de 12 meses, agrupamentos por unidade, órgão, porte e periodicidade, com exportação em CSV e impressão
 - API de custos: `/api/custos/`
+- Filtros de múltipla escolha (caixas de seleção) em Licenças, Custos e Análises
+- Tela Análises: placar e conformidade por unidade, mapa unidade × licença (com lacunas), conformidade mês a mês, renovações no prazo × em atraso, antecedência média de renovação, linha do tempo das vigências e vencimentos dos próximos 12 meses por unidade
+- Histórico mensal gravado pela rotina diária (`enviar_alertas`), com reconstrução do passado a partir das renovações
 - Painel de conformidade com indicadores e gráficos
 - API REST: `/api/licencas/` e `/api/resumo/`
 - Perfis de acesso: Administrador, Analista e Consulta

@@ -1,6 +1,13 @@
 from django.contrib import admin
 
-from .models import Licenca, OrgaoEmissor, Renovacao, TipoLicenca, Unidade
+from .models import Licenca, OrgaoEmissor, RegistroMensal, Renovacao, TipoLicenca, Unidade
+
+
+@admin.register(RegistroMensal)
+class RegistroMensalAdmin(admin.ModelAdmin):
+    list_display = ["mes", "unidade", "total", "em_dia", "vencidas", "atualizado_em"]
+    list_filter = ["unidade"]
+    date_hierarchy = "mes"
 
 
 @admin.register(Unidade)

@@ -1,0 +1,161 @@
+{% load moeda %}
+{% if filtros_ativos %}
+<p class="filtros-aplicados"><strong>Filtros aplicados:</strong>
+  {% for titulo, rotulo in filtros_ativos %}<span class="chip">{{ titulo }}: {{ rotulo }}</span>{% endfor %}
+</p>
+{% endif %}
+
+{% if not cenario %}
+<section class="cartao"><p>Nenhuma licença ativa para os filtros escolhidos.</p></section>
+{% else %}
+
+<h2 class="secao-titulo">Cenário de cada unidade</h2>
+
+{# 2. Placar por unidade #}
+<ul class="placar">
+  {% for c in cenario %}
+  <li class="placar-card {% if c.vencida %}tem-vencida{% elif c.vence_30 %}tem-alerta{% else %}tudo-ok{% endif %}">
+    <a class="placar-link" href="{% url 'licencas:lista' %}?unidade={{ c.unidade.pk }}">
+      <span class="placar-nome">{{ c.unidade.nome }}</span>
+      <span class="ajuda">{{ c.unidade.get_porte_display|default:"Porte não informado" }}</span>
+      <span class="placar-pct">{{ c.pct_em_dia|floatformat:1 }}%<small> em dia</small></span>
+      <span class="medidor" aria-hidden="true"><span style="width: {{ c.pct_em_dia|stringformat:'s' }}%"></span></span>
+      <span class="placar-numeros">
+        <span><b>{{ c.total }}</b>licença{{ c.total|pluralize:"s" }}</span>
+        <span class="{% if c.vencida %}txt-vencida{% endif %}"><b>{{ c.vencida }}</b>vencida{{ c.vencida|pluralize:"s" }}</span>
+        <span class="{% if c.vence_30 %}txt-alerta{% endif %}"><b>{{ c.vence_30 }}</b>em 30 dias</span>
+      </span>
+      <span class="placar-linha"><span>Próximo vencimento</span><strong>{% if c.proxima %}{{ c.proxima.data_validade|date:"d/m/Y" }}{% else %}—{% endif %}</strong></span>
+      {% if c.proxima %}<span class="ajuda placar-prox">{{ c.proxima.tipo.nome }}</span>{% endif %}
+      <span class="placar-linha"><span>Custo anual</span><strong>{{ c.custo_anual|reais }}</strong></span>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+
+{# 1. Conformidade por unidade #}
+<section class="cartao" aria-labelledby="g1">
+  <h2 id="g1">Conformidade por unidade</h2>
+  <p class="ajuda">Distribuição das licenças de cada unidade pelo status de hoje.</p>
+  <div class="grafico-caixa" style="height: {{ altura_cenario }}px;"><canvas id="g-cenario" role="img" aria-label="Barras empilhadas com o status das licenças de cada unidade. Os dados estão na tabela abaixo."></canvas></div>
+  <details><summary>Ver dados em tabela</summary>
+    <table><thead><tr><th scope="col">Unidade</th><th scope="col">Vigente</th><th scope="col">31 a 90 dias</th><th scope="col">Até 30 dias</th><th scope="col">Vencida</th><th scope="col">% em dia</th></tr></thead>
+    <tbody>{% for c in cenario %}<tr><td>{{ c.unidade.nome }}</td><td>{{ c.vigente }}</td><td>{{ c.vence_90 }}</td><td>{{ c.vence_30 }}</td><td>{{ c.vencida }}</td><td>{{ c.pct_em_dia|floatformat:1 }}%</td></tr>{% endfor %}</tbody></table>
+  </details>
+</section>
+
+{# 3. Mapa unidade × tipo #}
+<section class="cartao" aria-labelledby="g3">
+  <h2 id="g3">Mapa de licenças por unidade</h2>
+  <p class="ajuda">Cada célula mostra a situação da licença na unidade (a pior, se houver mais de uma).
+    {% if mapa.faltas %}<strong>{{ mapa.faltas }} combinação{{ mapa.faltas|pluralize:"ões" }} sem licença cadastrada</strong> (em cinza): confira se a unidade precisa dela.{% endif %}</p>
+  <div class="rolagem" tabindex="0" role="region" aria-label="Mapa de licenças por unidade">
+  <table class="mapa">
+    <thead><tr><th scope="col">Unidade</th>{% for t in mapa.tipos %}<th scope="col"><span class="mapa-tipo">{{ t.nome }}</span><span class="ajuda">{{ t.orgao.sigla }}</span></th>{% endfor %}</tr></thead>
+    <tbody>
+      {% for linha in mapa.linhas %}
+      <tr>
+        <th scope="row">{{ linha.unidade.nome }}</th>
+        {% for cel in linha.celulas %}
+          {% if cel %}
+          <td class="mapa-cel status-{{ cel.status }}"><a href="{{ cel.licenca.get_absolute_url }}"><span aria-hidden="true">{% if cel.status == 'vencida' %}✖{% elif cel.status == 'vence_30' %}▲{% elif cel.status == 'vigente' %}✔{% else %}●{% endif %}</span> {{ cel.rotulo }}</a></td>
+          {% else %}
+          <td class="mapa-cel mapa-falta">Não cadastrada</td>
+          {% endif %}
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<h2 class="secao-titulo">Evolução e histórico</h2>
+
+{# 4. Evolução da conformidade #}
+<section class="cartao" aria-labelledby="g4">
+  <h2 id="g4">Conformidade mês a mês</h2>
+  <p class="ajuda">Média diária do percentual de licenças em dia em cada mês (o mês atual vai até hoje). Clique no nome de uma unidade na legenda para mostrar ou esconder a linha.</p>
+  <div class="grafico-caixa" style="height: 300px"><canvas id="g-evolucao" role="img" aria-label="Gráfico de linhas com o percentual de licenças em dia por mês, geral e por unidade. Os dados estão na tabela abaixo."></canvas></div>
+  <details><summary>Ver dados em tabela</summary>
+    <div class="rolagem"><table><thead><tr><th scope="col">Mês</th><th scope="col">Geral</th>{% for s in evolucao.unidades %}<th scope="col">{{ s.nome }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for linha in evolucao.tabela %}<tr><td>{{ linha.mes }}</td>
+      <td>{% if linha.geral is not None %}{{ linha.geral }}%{% else %}—{% endif %}</td>
+      {% for v in linha.unidades %}<td>{% if v is not None %}{{ v }}%{% else %}—{% endif %}</td>{% endfor %}
+    </tr>{% endfor %}</tbody></table></div>
+  </details>
+</section>
+
+<div class="grade-2">
+  {# 5. Renovações por mês #}
+  <section class="cartao" aria-labelledby="g5">
+    <h2 id="g5">Renovações por mês</h2>
+    <p class="ajuda">No prazo = registrada até a data de vencimento anterior.</p>
+    <div class="grafico-caixa" style="height: 260px"><canvas id="g-renovacoes" role="img" aria-label="Barras empilhadas com renovações no prazo e em atraso por mês. Os dados estão na tabela abaixo."></canvas></div>
+    <details><summary>Ver dados em tabela</summary>
+      <table><thead><tr><th scope="col">Mês</th><th scope="col">No prazo</th><th scope="col">Em atraso</th></tr></thead>
+      <tbody>{% for r in renovacoes %}<tr><td>{{ r.mes }}</td><td>{{ r.no_prazo }}</td><td>{{ r.atraso }}</td></tr>{% endfor %}</tbody></table>
+    </details>
+  </section>
+
+  {# 8. Antecedência média #}
+  <section class="cartao" aria-labelledby="g8">
+    <h2 id="g8">Antecedência média de renovação</h2>
+    <p class="ajuda">Dias entre o registro da renovação e o vencimento anterior. Negativo = renovou depois de vencer.</p>
+    {% if antecedencia %}
+    <div class="grafico-caixa" style="height: 260px"><canvas id="g-antecedencia" role="img" aria-label="Barras com a antecedência média de renovação por unidade, em dias. Os dados estão na tabela abaixo."></canvas></div>
+    <details><summary>Ver dados em tabela</summary>
+      <table><thead><tr><th scope="col">Unidade</th><th scope="col">Média (dias)</th><th scope="col">Renovações</th><th scope="col">Em atraso</th></tr></thead>
+      <tbody>{% for a in antecedencia %}<tr><td>{{ a.unidade }}</td><td>{{ a.media }}</td><td>{{ a.renovacoes }}</td><td>{{ a.em_atraso }}</td></tr>{% endfor %}</tbody></table>
+    </details>
+    {% else %}<p>Ainda não há renovações registradas.</p>{% endif %}
+  </section>
+</div>
+
+{# 6. Linha do tempo #}
+<section class="cartao" aria-labelledby="g6">
+  <h2 id="g6">Linha do tempo das vigências</h2>
+  <p class="ajuda">Cada barra vai da emissão à validade da licença atual, de {{ linha_tempo.inicio|date:"m/Y" }} a {{ linha_tempo.fim|date:"m/Y" }}. A linha azul marca hoje.</p>
+  <div class="gantt" role="table" aria-label="Linha do tempo das vigências">
+    <div class="gantt-linha gantt-cabecalho" role="row">
+      <span class="gantt-rotulo" role="columnheader">Licença</span>
+      <span class="gantt-trilho" role="columnheader">
+        {% for m in linha_tempo.marcas %}{% if m.mostrar %}<span class="gantt-marca" style="left: {{ m.pos|stringformat:'s' }}%">{{ m.rotulo }}</span>{% endif %}{% endfor %}
+      </span>
+    </div>
+    {% for g in linha_tempo.grupos %}
+    <div class="gantt-grupo" role="row"><span role="rowheader">{{ g.unidade.nome }}</span></div>
+    {% for b in g.barras %}
+    <div class="gantt-linha" role="row">
+      <span class="gantt-rotulo" role="rowheader"><a href="{{ b.licenca.get_absolute_url }}">{{ b.licenca.tipo.nome }}</a></span>
+      <span class="gantt-trilho" role="cell">
+        {% for m in linha_tempo.marcas %}<span class="gantt-grade" style="left: {{ m.pos|stringformat:'s' }}%"></span>{% endfor %}
+        <span class="gantt-hoje" style="left: {{ linha_tempo.hoje|stringformat:'s' }}%"></span>
+        <span class="gantt-barra status-{{ b.status }}{% if b.corta_inicio %} corta-inicio{% endif %}{% if b.corta_fim %} corta-fim{% endif %}"
+              style="left: {{ b.esquerda|stringformat:'s' }}%; width: {{ b.largura|stringformat:'s' }}%"
+              title="{{ b.licenca.tipo.nome }}: {{ b.licenca.data_emissao|date:'d/m/Y' }} a {{ b.licenca.data_validade|date:'d/m/Y' }}">
+          <span class="sr">{{ b.licenca.data_emissao|date:"d/m/Y" }} a {{ b.licenca.data_validade|date:"d/m/Y" }}, {{ b.licenca.status_label }}</span>
+        </span>
+        <span class="gantt-data" style="left: calc({{ b.esquerda|stringformat:'s' }}% + {{ b.largura|stringformat:'s' }}%)" aria-hidden="true">{{ b.licenca.data_validade|date:"d/m/y" }}</span>
+      </span>
+    </div>
+    {% endfor %}
+    {% endfor %}
+  </div>
+</section>
+
+<h2 class="secao-titulo">Previsão</h2>
+
+{# 7. Vencimentos por unidade #}
+<section class="cartao" aria-labelledby="g7">
+  <h2 id="g7">Vencimentos nos próximos 12 meses, por unidade</h2>
+  <p class="ajuda">Quantas licenças precisam ser renovadas em cada mês, para planejar a carga de trabalho.</p>
+  <div class="grafico-caixa" style="height: 280px"><canvas id="g-vencimentos" role="img" aria-label="Barras empilhadas com a quantidade de vencimentos por mês e unidade. Os dados estão na tabela abaixo."></canvas></div>
+  <details><summary>Ver dados em tabela</summary>
+    <div class="rolagem"><table><thead><tr><th scope="col">Unidade</th>{% for m in vencimentos.meses %}<th scope="col">{{ m }}</th>{% endfor %}</tr></thead>
+    <tbody>{% for s in vencimentos.series %}<tr><td>{{ s.nome }}</td>{% for v in s.valores %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
+  </details>
+</section>
+{% endif %}
+
+{{ graficos|json_script:"dados-analises" }}

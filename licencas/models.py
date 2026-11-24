@@ -219,6 +219,29 @@ class Licenca(models.Model):
         return dias in (90, 60) or dias <= 30
 
 
+class RegistroMensal(models.Model):
+    """Foto da situação de cada unidade no mês, gravada pela rotina diária (o último registro do mês vale).
+
+    Garante um histórico exato daqui em diante, mesmo que licenças sejam editadas ou desativadas depois.
+    """
+
+    mes = models.DateField(help_text="Primeiro dia do mês.")
+    unidade = models.ForeignKey(Unidade, on_delete=models.CASCADE, related_name="registros_mensais")
+    total = models.PositiveIntegerField()
+    em_dia = models.PositiveIntegerField()
+    vencidas = models.PositiveIntegerField()
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["mes", "unidade__nome"]
+        verbose_name = "registro mensal"
+        verbose_name_plural = "registros mensais"
+        constraints = [models.UniqueConstraint(fields=["mes", "unidade"], name="um_registro_por_mes_e_unidade")]
+
+    def __str__(self):
+        return f"{self.unidade} · {self.mes:%m/%Y}: {self.em_dia}/{self.total} em dia"
+
+
 class Renovacao(models.Model):
     """Histórico: cada renovação registra a validade anterior e atualiza a licença."""
 

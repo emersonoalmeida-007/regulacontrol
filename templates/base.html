@@ -27,6 +27,10 @@
         <li><a href="{{ u_custos }}" {% if request.path == u_custos %}aria-current="page"{% endif %}>
           <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
           Custos</a></li>
+        {% url 'licencas:analises' as u_analises %}
+        <li><a href="{{ u_analises }}" {% if request.path == u_analises %}aria-current="page"{% endif %}>
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M21 12A9 9 0 1 1 12 3v9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/></svg>
+          Análises</a></li>
         <li><a href="{{ u_unid }}" {% if request.path|slice:":10" == u_unid %}aria-current="page"{% endif %}>
           <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16M16 9h2a2 2 0 0 1 2 2v10M3 21h18M8 7h4M8 11h4M8 15h4"/></svg>
           Unidades</a></li>

@@ -2,7 +2,7 @@
 
 Rodar:  python manage.py test
 """
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest import mock
 
@@ -13,9 +13,11 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from . import alertas, brasilapi, consultas, custos
+from . import alertas, analises, brasilapi, consultas, custos
 from .forms import LicencaForm, UnidadeForm
-from .models import Licenca, OrgaoEmissor, Renovacao, Status, TipoLicenca, Unidade, calcular_status
+from .models import (
+    Licenca, OrgaoEmissor, RegistroMensal, Renovacao, Status, TipoLicenca, Unidade, calcular_status,
+)
 
 HOJE = date(2027, 3, 15)
 
@@ -393,6 +395,85 @@ class DiasAvisoTests(Base):
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn("vence em 120 dia(s)", mail.outbox[0].body)
         self.assertNotIn("AVCB", mail.outbox[0].body)
+
+
+class AnalisesTests(Base):
+    def renovar_no_passado(self, lic, validade_anterior, registrado, nova_validade):
+        r = Renovacao.objects.bulk_create([Renovacao(
+            licenca=lic, validade_anterior=validade_anterior, nova_emissao=validade_anterior,
+            nova_validade=nova_validade, registrado_por=self.analista,
+        )])[0]
+        Renovacao.objects.filter(pk=r.pk).update(
+            registrado_em=timezone.make_aware(datetime.combine(registrado, datetime.min.time()))
+        )
+
+    def test_reconstrucao_do_status_no_passado(self):
+        lic = self.criar_licenca(200)
+        # Venceu em 01/03 do ano passado e só foi renovada 10 dias depois (em atraso).
+        venc = self.hoje - timedelta(days=150)
+        self.renovar_no_passado(lic, venc, venc + timedelta(days=10), lic.data_validade)
+        lic = analises.licencas().get(pk=lic.pk)
+        self.assertEqual(analises.status_em(lic, venc - timedelta(days=5)), Status.VENCE_30)
+        self.assertEqual(analises.status_em(lic, venc + timedelta(days=5)), Status.VENCIDA)  # janela do atraso
+        self.assertEqual(analises.status_em(lic, venc + timedelta(days=20)), Status.VIGENTE)
+        self.assertIsNone(analises.status_em(lic, venc - timedelta(days=400)))  # antes de existir
+
+    def test_renovacoes_no_prazo_e_em_atraso(self):
+        a = self.criar_licenca(200, numero="A")
+        b = self.criar_licenca(200, tipo=self.avcb, numero="B")
+        venc = self.hoje - timedelta(days=40)
+        self.renovar_no_passado(a, venc, venc - timedelta(days=20), a.data_validade)  # 20 dias antes
+        self.renovar_no_passado(b, venc, venc + timedelta(days=6), b.data_validade)  # 6 dias depois
+        lista = list(analises.licencas())
+        meses = analises.renovacoes_por_mes(lista, 12, self.hoje)
+        self.assertEqual(sum(m["no_prazo"] for m in meses), 1)
+        self.assertEqual(sum(m["atraso"] for m in meses), 1)
+        ante = analises.antecedencia_por_unidade(lista)
+        self.assertEqual(ante, [{"unidade": "CD Teste", "media": 7.0, "renovacoes": 2, "em_atraso": 1}])
+
+    def test_mapa_mostra_pior_status_e_lacunas(self):
+        outra = Unidade.objects.create(nome="CD Dois", cnpj="11444777000161")
+        self.criar_licenca(200)
+        self.criar_licenca(-1)  # mesma unidade e tipo, vencida: a célula fica vencida
+        self.criar_licenca(200, tipo=self.avcb, unidade=outra)
+        mapa = analises.mapa_unidade_tipo(list(analises.licencas()), self.hoje)
+        celulas = {linha["unidade"].nome: linha["celulas"] for linha in mapa["linhas"]}
+        tipos = [t.nome for t in mapa["tipos"]]
+        self.assertEqual(celulas["CD Teste"][tipos.index("AFE")]["status"], Status.VENCIDA)
+        self.assertIsNone(celulas["CD Teste"][tipos.index("AVCB")])
+        self.assertEqual(mapa["faltas"], 2)
+
+    def test_evolucao_usa_registro_mensal_quando_existe(self):
+        self.criar_licenca(200)
+        mes_passado = (self.hoje.replace(day=1) - timedelta(days=1)).replace(day=1)
+        RegistroMensal.objects.create(mes=mes_passado, unidade=self.unidade, total=4, em_dia=1, vencidas=3)
+        evo = analises.evolucao_conformidade(list(analises.licencas()), 3, self.hoje, usar_registros=True)
+        self.assertEqual(evo["geral"][-2], 25.0)   # do registro
+        self.assertEqual(evo["geral"][-1], 100.0)  # hoje, calculado
+
+    def test_registrar_mes_atualiza_sem_duplicar(self):
+        self.criar_licenca(-3)
+        analises.registrar_mes(self.hoje)
+        self.criar_licenca(100, tipo=self.avcb)
+        analises.registrar_mes(self.hoje)
+        r = RegistroMensal.objects.get(unidade=self.unidade)
+        self.assertEqual((r.total, r.em_dia, r.vencidas), (2, 1, 1))
+
+    def test_tela_analises_com_filtros(self):
+        self.client.force_login(self.consulta)
+        outra = Unidade.objects.create(nome="CD Dois", cnpj="11444777000161")
+        self.criar_licenca(10, numero="X1")
+        self.criar_licenca(10, unidade=outra, numero="X2")
+        url = reverse("licencas:analises")
+        resp = self.client.get(url)
+        for texto in ("Conformidade por unidade", "Mapa de licenças", "Conformidade mês a mês",
+                      "Renovações por mês", "Linha do tempo", "Vencimentos nos próximos 12 meses", "dados-analises"):
+            self.assertContains(resp, texto)
+        parcial = self.client.get(url, {"unidade": [outra.pk], "periodo": "6", "parcial": "1"})
+        self.assertNotContains(parcial, "<html")
+        self.assertContains(parcial, "CD Dois")
+        self.assertNotContains(parcial, "CD Teste")
+        self.assertEqual(len(parcial.context["evolucao"]["meses"]), 6)
 
 
 class AlertasTests(Base):

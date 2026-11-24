@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% load static %}
+{% block titulo %}Análises{% endblock %}
+{% block conteudo %}
+<div class="cabecalho">
+  <div>
+    <h1>Análises</h1>
+    <p class="ajuda">Cenário de cada unidade, evolução histórica e previsão · {% now "d/m/Y" %}</p>
+  </div>
+  <div class="acoes nao-imprimir">
+    <button type="button" class="botao secundario" onclick="window.print()">Imprimir / PDF</button>
+  </div>
+</div>
+
+<form id="filtros-analises" class="filtros-multi nao-imprimir" method="get" role="search" aria-label="Filtrar análises">
+  {% for f in filtros %}{% include "includes/filtro_multi.html" %}{% endfor %}
+  <label class="periodo">Período
+    <select name="periodo">
+      {% for p in periodos %}<option value="{{ p }}" {% if p == meses %}selected{% endif %}>{{ p }} meses</option>{% endfor %}
+    </select>
+  </label>
+  <a class="link-botao limpar-tudo" href="{% url 'licencas:analises' %}">Limpar filtros</a>
+  <noscript><button type="submit" class="botao">Filtrar</button></noscript>
+</form>
+
+<div id="resultado-analises" aria-live="polite">
+  {% include "licencas/_analises_conteudo.html" %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/filtros_multi.js' %}"></script>
+<script src="{% static 'js/analises.js' %}"></script>
+{% endblock %}

@@ -3,7 +3,7 @@
 Empresa, CNPJs, números de licença e pessoas são inventados. Não use dados reais
 sem autorização por escrito da organização parceira (LGPD).
 """
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
@@ -12,7 +12,8 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
 
-from licencas.models import Licenca, OrgaoEmissor, Periodicidade, Porte, TipoLicenca, Unidade
+from licencas.analises import registrar_mes
+from licencas.models import Licenca, OrgaoEmissor, Periodicidade, Porte, Renovacao, TipoLicenca, Unidade
 from licencas.permissoes import GRUPO_ADMIN, GRUPO_ANALISTA, GRUPO_CONSULTA
 
 SENHA_DEMO = "demo12345"
@@ -62,7 +63,33 @@ LICENCAS = [
 
 
 class Command(BaseCommand):
-    help = "Carrega dados fictícios de demonstração (empresa, unidades, licenças e usuários)."
+    help = "Carrega dados fictícios de demonstração (empresa, unidades, licenças, histórico e usuários)."
+
+    @staticmethod
+    def _renovacao_passada(lic, i, hoje, usuario) -> int:
+        """Cria a renovação (fictícia) que deu origem à vigência atual, para alimentar a tela Análises.
+
+        2 em cada 3 foram registradas no prazo (15 a 54 dias antes do vencimento anterior);
+        1 em cada 3, em atraso (10 a 39 dias depois). Não mexe nas datas atuais da licença.
+        """
+        if lic.renovacoes.exists():
+            return 0
+        validade_anterior = lic.data_emissao
+        if i % 3 == 0:
+            registrado = validade_anterior + timedelta(days=10 + (i * 7) % 30)
+        else:
+            registrado = validade_anterior - timedelta(days=15 + (i * 11) % 40)
+        if registrado > hoje:
+            return 0
+        # bulk_create não chama Renovacao.save(), que atualizaria as datas da licença.
+        renovacao = Renovacao.objects.bulk_create([Renovacao(
+            licenca=lic, validade_anterior=validade_anterior, nova_emissao=lic.data_emissao,
+            nova_validade=lic.data_validade, numero_protocolo=lic.numero,
+            observacao="Histórico fictício de demonstração", registrado_por=usuario,
+        )])[0]
+        momento = timezone.make_aware(datetime.combine(registrado, time(10, 0)))
+        Renovacao.objects.filter(pk=renovacao.pk).update(registrado_em=momento)
+        return 1
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -103,7 +130,7 @@ class Command(BaseCommand):
                 u.save(update_fields=["porte"])
             unidades.append(u)
 
-        criadas = 0
+        criadas = historico = 0
         for i, (t, u, dias) in enumerate(LICENCAS, start=1):
             validade = hoje + timedelta(days=dias)
             lic, criada = Licenca.objects.get_or_create(
@@ -122,8 +149,10 @@ class Command(BaseCommand):
                 if i == 1:
                     lic.dias_aviso = 120  # exemplo de aviso personalizado
                 lic.save(update_fields=["valor", "periodicidade", "dias_aviso"])
+            historico += self._renovacao_passada(lic, i, hoje, usuarios["analista"])
 
+        registrar_mes(hoje)
         self.stdout.write(self.style.SUCCESS(
-            f"Dados de demonstração prontos ({criadas} licenças novas). "
+            f"Dados de demonstração prontos ({criadas} licenças novas, {historico} renovações históricas). "
             f"Usuários: admin / analista / consulta, senha {SENHA_DEMO}"
         ))
