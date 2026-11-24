@@ -32,18 +32,7 @@
   const linkExportar = document.getElementById("link-exportar");
   let controlador;
 
-  function atualizarContadores() {
-    form.querySelectorAll("details.multi").forEach((d) => {
-      const marcados = d.querySelectorAll("input:checked").length;
-      const summary = d.querySelector("summary");
-      const indicador = summary.querySelector(".contador, .ajuda");
-      indicador.className = marcados ? "contador" : "ajuda";
-      indicador.textContent = marcados ? String(marcados) : "Todos";
-    });
-  }
-
   async function atualizar() {
-    atualizarContadores();
     const params = new URLSearchParams(new FormData(form));
     const consulta = params.toString();
     history.replaceState(null, "", consulta ? "?" + consulta : location.pathname);
@@ -67,27 +56,10 @@
     }
   }
 
+  // Abrir/fechar listas, "Marcar todos" e contadores ficam em filtros_multi.js.
   if (form && resultado) {
     form.addEventListener("change", atualizar);
     form.addEventListener("submit", (e) => { e.preventDefault(); atualizar(); });
-    form.addEventListener("click", (e) => {
-      const botao = e.target.closest("[data-marcar]");
-      if (!botao) return;
-      const marcar = botao.dataset.marcar === "todos";
-      botao.closest("fieldset").querySelectorAll("input[type=checkbox]").forEach((c) => { c.checked = marcar; });
-      atualizar();
-    });
-    // Só um grupo aberto por vez; fecha ao clicar fora ou com Esc.
-    const grupos = form.querySelectorAll("details.multi");
-    grupos.forEach((d) => d.addEventListener("toggle", () => {
-      if (d.open) grupos.forEach((o) => { if (o !== d) o.open = false; });
-    }));
-    document.addEventListener("click", (e) => { if (!form.contains(e.target)) grupos.forEach((d) => { d.open = false; }); });
-    document.addEventListener("keydown", (e) => {
-      if (e.key !== "Escape") return;
-      const aberto = form.querySelector("details.multi[open]");
-      if (aberto) { aberto.open = false; aberto.querySelector("summary").focus(); }
-    });
   }
 
   desenharGrafico();

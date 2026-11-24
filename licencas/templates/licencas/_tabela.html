@@ -1,3 +1,8 @@
+{% if filtros_ativos %}
+<p class="filtros-aplicados"><strong>Filtros aplicados:</strong>
+  {% for titulo, rotulo in filtros_ativos %}<span class="chip">{{ titulo }}: {{ rotulo }}</span>{% endfor %}
+</p>
+{% endif %}
 <p class="contagem">{{ licencas|length }} licença{{ licencas|length|pluralize:"s" }} encontrada{{ licencas|length|pluralize:"s" }}.</p>
 {% if licencas %}
 <div class="rolagem" tabindex="0" role="region" aria-label="Tabela de licenças">

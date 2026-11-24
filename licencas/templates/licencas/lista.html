@@ -10,32 +10,14 @@
   </div>
 </div>
 
-<form id="filtros" class="filtros" method="get" role="search" aria-label="Filtrar licenças">
-  <div class="campo">
-    <label for="f-q">Buscar</label>
-    <input type="search" id="f-q" name="q" value="{{ filtros.q|default:'' }}" placeholder="Tipo, número, unidade ou órgão">
+<form id="filtros" class="filtros-multi" method="get" role="search" aria-label="Filtrar licenças">
+  <div class="busca">
+    <label for="f-q" class="sr">Buscar</label>
+    <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    <input type="search" id="f-q" name="q" value="{{ busca }}" placeholder="Buscar por tipo, número, unidade ou órgão">
   </div>
-  <div class="campo">
-    <label for="f-status">Status</label>
-    <select id="f-status" name="status">
-      <option value="">Todos</option>
-      {% for valor, rotulo in status_choices %}<option value="{{ valor }}" {% if filtros.status == valor %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}
-    </select>
-  </div>
-  <div class="campo">
-    <label for="f-unidade">Unidade</label>
-    <select id="f-unidade" name="unidade">
-      <option value="">Todas</option>
-      {% for u in unidades %}<option value="{{ u.pk }}" {% if filtros.unidade == u.pk|stringformat:'s' %}selected{% endif %}>{{ u.nome }}</option>{% endfor %}
-    </select>
-  </div>
-  <div class="campo">
-    <label for="f-orgao">Órgão</label>
-    <select id="f-orgao" name="orgao">
-      <option value="">Todos</option>
-      {% for o in orgaos %}<option value="{{ o.pk }}" {% if filtros.orgao == o.pk|stringformat:'s' %}selected{% endif %}>{{ o.sigla }}</option>{% endfor %}
-    </select>
-  </div>
+  {% for f in filtros %}{% include "includes/filtro_multi.html" %}{% endfor %}
+  <a class="link-botao limpar-tudo" href="{% url 'licencas:lista' %}">Limpar filtros</a>
   <noscript><button type="submit" class="botao">Filtrar</button></noscript>
 </form>
 
@@ -43,4 +25,7 @@
   {% include "licencas/_tabela.html" %}
 </div>
 {% endblock %}
-{% block scripts %}<script src="{% static 'js/filtros.js' %}"></script>{% endblock %}
+{% block scripts %}
+<script src="{% static 'js/filtros_multi.js' %}"></script>
+<script src="{% static 'js/filtros.js' %}"></script>
+{% endblock %}

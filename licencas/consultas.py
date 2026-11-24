@@ -8,28 +8,52 @@ from django.utils import timezone
 from .models import Licenca, Status, calcular_status
 
 
-def filtrar_por_status(qs: QuerySet, status: str, hoje: date | None = None) -> QuerySet:
-    """Traduz o status calculado em faixas de data, para filtrar direto no banco."""
-    hoje = hoje or timezone.localdate()
+def _faixas_status(hoje: date) -> dict:
     d = lambda n: hoje + timedelta(days=n)  # noqa: E731
-    faixas = {
+    return {
         Status.VENCIDA: Q(data_validade__lt=hoje),
         Status.VENCE_30: Q(data_validade__gte=hoje, data_validade__lte=d(30)),
         Status.VENCE_60: Q(data_validade__gt=d(30), data_validade__lte=d(60)),
         Status.VENCE_90: Q(data_validade__gt=d(60), data_validade__lte=d(90)),
         Status.VIGENTE: Q(data_validade__gt=d(90)),
     }
-    return qs.filter(faixas[status]) if status in faixas else qs
+
+
+def filtrar_por_status(qs: QuerySet, status, hoje: date | None = None) -> QuerySet:
+    """Traduz o status calculado em faixas de data, para filtrar direto no banco.
+
+    Aceita um status ou uma lista deles (qualquer um vale).
+    """
+    faixas = _faixas_status(hoje or timezone.localdate())
+    escolhidos = [status] if isinstance(status, str) else list(status)
+    condicao = Q()
+    for s in escolhidos:
+        if s in faixas:
+            condicao |= faixas[s]
+    return qs.filter(condicao) if condicao else qs
+
+
+def _lista(params, nome) -> list[str]:
+    """Valores de um filtro de múltipla escolha (?unidade=1&unidade=3), ignorando vazios."""
+    if hasattr(params, "getlist"):
+        return [v for v in params.getlist(nome) if v]
+    valor = params.get(nome)
+    return [valor] if valor else []
 
 
 def aplicar_filtros(qs: QuerySet, params) -> QuerySet:
-    """Filtros da lista (RF07) e da API: unidade, órgão, status e texto livre."""
-    if params.get("unidade"):
-        qs = qs.filter(unidade_id=params["unidade"])
-    if params.get("orgao"):
-        qs = qs.filter(tipo__orgao_id=params["orgao"])
-    if params.get("status"):
-        qs = filtrar_por_status(qs, params["status"])
+    """Filtros da lista de licenças (RF07) e da API.
+
+    Unidade, tipo de licença, órgão e status aceitam várias opções: dentro de um filtro vale
+    qualquer opção marcada (OU); entre filtros diferentes, todas (E). Mais a busca por texto.
+    """
+    campos = {"unidade": "unidade_id__in", "tipo": "tipo_id__in", "orgao": "tipo__orgao_id__in"}
+    for nome, lookup in campos.items():
+        valores = _lista(params, nome)
+        if valores:
+            qs = qs.filter(**{lookup: valores})
+    if _lista(params, "status"):
+        qs = filtrar_por_status(qs, _lista(params, "status"))
     if params.get("q"):
         termo = params["q"].strip()
         qs = qs.filter(

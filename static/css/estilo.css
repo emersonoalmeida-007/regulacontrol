@@ -185,6 +185,9 @@ tfoot th, tfoot td { background: #f8fafc; font-weight: 700; border-top: 2px soli
 .link-botao { background: none; border: 0; padding: .25rem 0; color: var(--primaria); font: inherit; font-size: .85rem; font-weight: 600; cursor: pointer; text-decoration: none; }
 .link-botao:hover { text-decoration: underline; }
 .limpar-tudo { margin-left: auto; }
+.busca { position: relative; flex: 1 1 280px; max-width: 420px; }
+.busca svg { position: absolute; left: .7rem; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--texto-suave); pointer-events: none; }
+.busca input { width: 100%; padding-left: 2.3rem; min-height: 2.35rem; }
 .filtros-aplicados { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin: 0 0 1rem; font-size: .85rem; color: var(--texto-suave); }
 .chip { display: inline-block; padding: .2rem .6rem; border-radius: 999px; background: var(--primaria-suave); color: var(--primaria-escura); font-weight: 600; }
 @media (max-width: 720px) { .multi fieldset { position: static; box-shadow: none; margin-top: .4rem; } .limpar-tudo { margin-left: 0; } }

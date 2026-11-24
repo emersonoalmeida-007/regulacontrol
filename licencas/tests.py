@@ -170,6 +170,32 @@ class TelasTests(Base):
         self.assertNotContains(resp, "OK-1")
         self.assertNotContains(resp, "<html")
 
+    def test_lista_com_filtros_de_multipla_escolha(self):
+        outra = Unidade.objects.create(nome="CD Dois", cnpj="11444777000161")
+        self.criar_licenca(-3, numero="VENC-U1")
+        self.criar_licenca(10, tipo=self.avcb, numero="V30-U1")
+        self.criar_licenca(200, numero="OK-U1")
+        self.criar_licenca(10, unidade=outra, numero="V30-U2")
+        url = reverse("licencas:lista")
+
+        resp = self.client.get(url, {"status": ["vencida", "vence_30"], "parcial": "1"})
+        for numero in ("VENC-U1", "V30-U1", "V30-U2"):
+            self.assertContains(resp, numero)
+        self.assertNotContains(resp, "OK-U1")
+
+        resp = self.client.get(url, {"status": ["vencida", "vence_30"], "unidade": [outra.pk], "parcial": "1"})
+        self.assertContains(resp, "V30-U2")
+        self.assertNotContains(resp, "VENC-U1")
+        self.assertContains(resp, "Unidades: CD Dois")
+
+        resp = self.client.get(url, {"tipo": [self.afe.pk, self.avcb.pk], "unidade": [self.unidade.pk]})
+        self.assertContains(resp, f'value="{self.avcb.pk}" checked')
+        self.assertNotContains(resp, "V30-U2")
+
+        csv_txt = self.client.get(reverse("licencas:exportar"), {"status": ["vencida"]}).content.decode()
+        self.assertIn("VENC-U1", csv_txt)
+        self.assertNotIn("OK-U1", csv_txt)
+
     def test_exportar_csv(self):
         self.criar_licenca(10, numero="CSV-1")
         resp = self.client.get(reverse("licencas:exportar"))

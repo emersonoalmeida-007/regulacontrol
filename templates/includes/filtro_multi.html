@@ -1,0 +1,19 @@
+{# Um filtro de múltipla escolha: botão que abre uma lista de caixas de seleção. #}
+<details class="multi">
+  <summary>
+    {{ f.titulo }}
+    {% if f.qtd_marcados %}<span class="contador">{{ f.qtd_marcados }}</span>{% else %}<span class="ajuda">Todos</span>{% endif %}
+  </summary>
+  <fieldset>
+    <legend class="sr">{{ f.titulo }}: marque uma ou mais opções</legend>
+    <div class="multi-opcoes">
+      {% for op in f.opcoes %}
+      <label class="opcao"><input type="checkbox" name="{{ f.nome }}" value="{{ op.valor }}" {% if op.marcado %}checked{% endif %}> {{ op.rotulo }}</label>
+      {% endfor %}
+    </div>
+    <div class="multi-acoes">
+      <button type="button" class="link-botao" data-marcar="todos">Marcar todos</button>
+      <button type="button" class="link-botao" data-marcar="nenhum">Limpar</button>
+    </div>
+  </fieldset>
+</details>

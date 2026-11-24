@@ -14,26 +14,7 @@
 </div>
 
 <form id="filtros-custos" class="filtros-multi nao-imprimir" method="get" role="search" aria-label="Filtrar custos">
-  {% for f in filtros %}
-  <details class="multi">
-    <summary>
-      {{ f.titulo }}
-      {% if f.qtd_marcados %}<span class="contador">{{ f.qtd_marcados }}</span>{% else %}<span class="ajuda">Todos</span>{% endif %}
-    </summary>
-    <fieldset>
-      <legend class="sr">{{ f.titulo }}: marque uma ou mais opções</legend>
-      <div class="multi-opcoes">
-        {% for op in f.opcoes %}
-        <label class="opcao"><input type="checkbox" name="{{ f.nome }}" value="{{ op.valor }}" {% if op.marcado %}checked{% endif %}> {{ op.rotulo }}</label>
-        {% endfor %}
-      </div>
-      <div class="multi-acoes">
-        <button type="button" class="link-botao" data-marcar="todos">Marcar todos</button>
-        <button type="button" class="link-botao" data-marcar="nenhum">Limpar</button>
-      </div>
-    </fieldset>
-  </details>
-  {% endfor %}
+  {% for f in filtros %}{% include "includes/filtro_multi.html" %}{% endfor %}
   <a class="link-botao limpar-tudo" href="{% url 'licencas:relatorio_custos' %}">Limpar filtros</a>
   <noscript><button type="submit" class="botao">Filtrar</button></noscript>
 </form>
@@ -44,5 +25,6 @@
 {% endblock %}
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/filtros_multi.js' %}"></script>
 <script src="{% static 'js/relatorio.js' %}"></script>
 {% endblock %}

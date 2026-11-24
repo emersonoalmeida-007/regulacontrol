@@ -8,9 +8,9 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, DetailView, ListView, UpdateView
 
-from . import brasilapi, consultas, custos
+from . import brasilapi, consultas, custos, filtros
 from .forms import LicencaForm, RenovacaoForm, UnidadeForm
-from .models import Licenca, OrgaoEmissor, Periodicidade, Porte, Status, TipoLicenca, Unidade
+from .models import Licenca, Status, Unidade
 from .permissoes import PodeEditarMixin, pode_editar
 
 
@@ -47,11 +47,11 @@ class LicencaListView(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
+        lista_filtros = filtros.filtros_licencas(self.request.GET)
         ctx.update(
-            unidades=Unidade.objects.all(),
-            orgaos=OrgaoEmissor.objects.all(),
-            status_choices=Status.choices,
-            filtros=self.request.GET,
+            filtros=lista_filtros,
+            filtros_ativos=filtros.ativos(lista_filtros),
+            busca=self.request.GET.get("q", ""),
         )
         return ctx
 
@@ -162,7 +162,7 @@ def relatorio_custos(request):
     """
     params = request.GET
     fluxo = custos.fluxo_pagamentos(params=params)
-    filtros = _opcoes_filtros_custos(params)
+    lista_filtros = filtros.filtros_custos(params)
     contexto = {
         "resumo": custos.resumo_custos(params),
         "fluxo": fluxo,
@@ -170,32 +170,11 @@ def relatorio_custos(request):
         "dados_fluxo": [{"mes": m["mes"], "valor": float(m["valor"])} for m in fluxo],
         "licencas": custos.licencas_com_valor(params).order_by("unidade__nome", "tipo__nome"),
         "sem_valor": custos.licencas_filtradas(params).filter(valor__isnull=True),
-        "filtros": filtros,
-        "filtros_ativos": [(f["titulo"], op["rotulo"]) for f in filtros for op in f["opcoes"] if op["marcado"]],
+        "filtros": lista_filtros,
+        "filtros_ativos": filtros.ativos(lista_filtros),
     }
     modelo = "licencas/_custos_conteudo.html" if params.get("parcial") else "licencas/relatorio_custos.html"
     return render(request, modelo, contexto)
-
-
-def _opcoes_filtros_custos(params) -> list[dict]:
-    """Monta cada grupo de caixas de seleção, marcando o que veio na URL."""
-    grupos = [
-        ("unidade", "Unidades", [(str(u.pk), u.nome) for u in Unidade.objects.all()]),
-        ("tipo", "Licenças", [(str(t.pk), str(t)) for t in TipoLicenca.objects.select_related("orgao")]),
-        ("orgao", "Órgãos", [(str(o.pk), o.sigla) for o in OrgaoEmissor.objects.all()]),
-        ("porte", "Porte", list(Porte.choices)),
-        ("periodicidade", "Periodicidade", list(Periodicidade.choices)),
-    ]
-    filtros = []
-    for nome, titulo, opcoes in grupos:
-        marcados = set(params.getlist(nome))
-        filtros.append({
-            "nome": nome,
-            "titulo": titulo,
-            "qtd_marcados": len(marcados & {v for v, _ in opcoes}),
-            "opcoes": [{"valor": v, "rotulo": r, "marcado": v in marcados} for v, r in opcoes],
-        })
-    return filtros
 
 
 @login_required
